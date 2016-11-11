@@ -15,7 +15,7 @@ type Collector struct {
 	lock      sync.Mutex
 	waitCount int
 	tasks     []*collectorTask
-	results   []interface{}
+	results   []*TaskResult
 }
 
 // NewCollector creates a new Collector instance
@@ -23,7 +23,7 @@ func NewCollector() *Collector {
 	return &Collector{
 		waitCount: 0,
 		tasks:     make([]*collectorTask, 0),
-		results:   make([]interface{}, 0),
+		results:   make([]*TaskResult, 0),
 	}
 }
 
@@ -44,7 +44,7 @@ func (c *Collector) Run(f CollectorFunc, args ...interface{}) {
 // will return the results of those functions.  Wait will wait for results until it has
 // not received a task result in 'timeout' amount of time.  If timeout is 0, Wait will
 // wait indefinitely for tasks to finish.
-func (c *Collector) Wait(timeout time.Duration) ([]interface{}, error) {
+func (c *Collector) Wait(timeout time.Duration) ([]*TaskResult, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
