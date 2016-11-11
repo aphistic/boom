@@ -6,4 +6,4 @@ boom
 [![Code Coverage](https://img.shields.io/codecov/c/github/aphistic/boom.svg)](http://codecov.io/github/aphistic/boom?branch=master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/aphistic/boom)](https://goreportcard.com/report/github.com/aphistic/boom)
 
-Boom is a library for easily handling tasks and the results of those tasks.
+Boom is a Go library for easily handling tasks and the results of those tasks.
