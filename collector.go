@@ -1,13 +1,16 @@
 package boom
 
 import (
-	"reflect"
 	"sync"
 	"time"
 )
 
-// CollectorFunc is the signature for function a Collector runs to perform a task
+// CollectorFunc is the signature for the function a Collector runs to perform a task
 type CollectorFunc func(data ...interface{}) *TaskResult
+
+// CollectorCloser is the signature for the function a Collector runs when
+// WaitCloser is called and an error occurs in the Collector.
+type CollectorCloser func(result *TaskResult)
 
 // Collector can take a number of tasks, execute them in parallel, and then collect
 // the results of those tasks once all have been completed.
@@ -16,6 +19,7 @@ type Collector struct {
 	waitCount int
 	tasks     []*collectorTask
 	results   []*TaskResult
+	resChan   chan *collectorResult
 }
 
 // NewCollector creates a new Collector instance
@@ -24,7 +28,29 @@ func NewCollector() *Collector {
 		waitCount: 0,
 		tasks:     make([]*collectorTask, 0),
 		results:   make([]*TaskResult, 0),
+		resChan:   make(chan *collectorResult),
 	}
+}
+
+func (c *Collector) cleanup(closer CollectorCloser) {
+	for _, res := range c.results {
+		if res != nil {
+			closer(res)
+		}
+	}
+
+	for {
+		res := <-c.resChan
+		closer(res.Result)
+
+		c.lock.Lock()
+		c.waitCount--
+		if c.waitCount == 0 {
+			return
+		}
+		c.lock.Unlock()
+	}
+
 }
 
 // Run takes a CollectorFunc to execute and zero or more parameters to pass to that
@@ -33,11 +59,11 @@ func (c *Collector) Run(f CollectorFunc, args ...interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	task := newCollectorTask(f, args)
+	task := newCollectorTask(f, args, c.resChan)
 	c.tasks = append(c.tasks, task)
 	c.results = append(c.results, nil)
 	c.waitCount++
-	task.Start()
+	task.Start(len(c.results) - 1)
 }
 
 // Wait will wait until all tasks associated with the Collector have finished and then
@@ -45,60 +71,72 @@ func (c *Collector) Run(f CollectorFunc, args ...interface{}) {
 // not received a task result in 'timeout' amount of time.  If timeout is 0, Wait will
 // wait indefinitely for tasks to finish.
 func (c *Collector) Wait(timeout time.Duration) ([]*TaskResult, error) {
+	return c.WaitCloser(timeout, nil)
+}
+
+// WaitCloser will wait similar to Wait except if an error occurs while waiting
+// for tasks to finish, closer will be called on each task result as they finish.
+func (c *Collector) WaitCloser(timeout time.Duration, closer CollectorCloser) ([]*TaskResult, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	chans := make([]reflect.SelectCase, len(c.tasks)+1)
-	chans[0].Dir = reflect.SelectRecv
-
-	for idx, task := range c.tasks {
-		chans[idx+1].Dir = reflect.SelectRecv
-		chans[idx+1].Chan = reflect.ValueOf(task.resChan)
+	if c.waitCount == 0 {
+		return nil, ErrFinished
 	}
 
+	var timeoutChan <-chan time.Time
 	if timeout > 0 {
-		ticker := time.NewTicker(timeout)
-		defer ticker.Stop()
-		chans[0].Chan = reflect.ValueOf(ticker.C)
+		timeoutChan = time.After(timeout)
+	} else {
+		timeoutChan = make(chan time.Time)
 	}
 
 	for {
-		choice, val, _ := reflect.Select(chans)
-		if choice == 0 {
+		select {
+		case res := <-c.resChan:
+			c.results[res.Choice] = res.Result
+			c.waitCount--
+
+			if c.waitCount == 0 {
+				return c.results, nil
+			}
+		case <-timeoutChan:
+			if closer != nil {
+				go c.cleanup(closer)
+			}
 			return nil, ErrTimeout
 		}
-
-		res := val.Interface().(*TaskResult)
-		c.results[choice-1] = res
-		c.waitCount--
-
-		if c.waitCount == 0 {
-			break
-		}
 	}
+}
 
-	return c.results, nil
+type collectorResult struct {
+	Choice int
+	Result *TaskResult
 }
 
 type collectorTask struct {
 	f       CollectorFunc
+	closer  CollectorCloser
 	args    []interface{}
-	resChan chan interface{}
+	resChan chan<- *collectorResult
 }
 
-func newCollectorTask(f CollectorFunc, args []interface{}) *collectorTask {
+func newCollectorTask(f CollectorFunc, args []interface{}, resChan chan<- *collectorResult) *collectorTask {
 	return &collectorTask{
 		f:       f,
 		args:    args,
-		resChan: make(chan interface{}),
+		resChan: resChan,
 	}
 }
 
-func (ct *collectorTask) Start() {
-	go ct.worker()
+func (ct *collectorTask) Start(choice int) {
+	go ct.worker(choice)
 }
 
-func (ct *collectorTask) worker() {
+func (ct *collectorTask) worker(choice int) {
 	res := ct.f(ct.args...)
-	ct.resChan <- res
+	ct.resChan <- &collectorResult{
+		Choice: choice,
+		Result: res,
+	}
 }
