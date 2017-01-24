@@ -7,15 +7,23 @@ import (
 var nilValue = reflect.ValueOf(nil)
 
 // TaskResult is the result expected from a boom task when it's finished executing
-type TaskResult struct {
-	Value interface{}
-	Err   error
+type TaskResult interface {
+	Err() error
 }
 
-// NewResult is a convenience function for creating a TaskResult
-func NewResult(val interface{}, err error) *TaskResult {
-	return &TaskResult{
+type ValueResult struct {
+	Value interface{}
+	Error error
+}
+
+// NewValueResult is a convenience function for creating a ValueResult
+func NewValueResult(val interface{}, err error) *ValueResult {
+	return &ValueResult{
 		Value: val,
-		Err:   err,
+		Error: err,
 	}
+}
+
+func (r *ValueResult) Err() error {
+	return r.Error
 }
