@@ -4,7 +4,7 @@ import "time"
 
 type Collector interface {
 	Run(CollectorFunc, ...interface{})
-	Wait(time.Duration) []TaskResult
+	Wait(time.Duration) ([]TaskResult, error)
 	WaitCloser(time.Duration, CollectorCloser) ([]TaskResult, error)
 }
 

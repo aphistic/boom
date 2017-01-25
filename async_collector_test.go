@@ -11,6 +11,17 @@ type AsyncColSuite struct{}
 
 var _ = Suite(&AsyncColSuite{})
 
+func (s *AsyncColSuite) TestFitsCollector(c *C) {
+	// Somehow I missed that AsyncCollector didn't match the Collector interface
+	// so this is here to make sure I can't accidentally do that again.
+
+	col := NewAsyncCollector()
+
+	func(c Collector) {
+
+	}(col)
+}
+
 func (s *AsyncColSuite) TestWaitTimeout(c *C) {
 	col := NewAsyncCollector()
 
