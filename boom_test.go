@@ -6,6 +6,8 @@ import (
 
 	"time"
 
+	"fmt"
+
 	. "gopkg.in/check.v1"
 )
 
@@ -16,6 +18,40 @@ type TaskSuite struct{}
 var _ = Suite(&TaskSuite{})
 
 const waitTimeout = 10 * time.Millisecond
+
+func ExampleTask() {
+	// Create a new task but don't start execution right away
+	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+		// Run the task until something requests that we stop
+		for !task.Stopping() {
+			time.Sleep(10 * time.Millisecond)
+		}
+		return NewValueResult(args, nil)
+	}, "first", "second", 3)
+
+	// Start the Task. Another way to do this in a single command is to use
+	// RunTask() to create a new task and start it right away
+	t.Start()
+
+	// Let the task run a little bit
+	time.Sleep(100 * time.Millisecond)
+
+	// Ask the task to stop
+	t.Stop()
+
+	// Wait forever for the task to finish running and get
+	// the result from it
+	res, _ := t.Wait(0)
+
+	valRes := res.(*ValueResult)
+
+	fmt.Printf("Value: %+v\n", valRes.Value)
+	fmt.Printf("Error: %+v\n", valRes.Error)
+
+	// Output:
+	// Value: [first second 3]
+	// Error: <nil>
+}
 
 func (s *TaskSuite) TestStartSync(c *C) {
 	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
