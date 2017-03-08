@@ -171,8 +171,18 @@ func (s *TaskSuite) TestWaitStopped(c *C) {
 		return NewValueResult(nil, nil)
 	})
 
-	res, err := t.Wait(0)
+	res, err := t.Wait(waitTimeout)
 	c.Assert(err, Equals, ErrNotExecuting)
+	c.Check(res, IsNil)
+}
+
+func (s *TaskSuite) TestNilResult(c *C) {
+	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+		return nil
+	})
+
+	res, err := t.Wait(waitTimeout)
+	c.Assert(err, IsNil)
 	c.Check(res, IsNil)
 }
 
