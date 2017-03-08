@@ -46,17 +46,19 @@ func (c *AsyncCollector) cleanup(closer CollectorCloser) {
 
 }
 
-// Run takes a CollectorFunc to execute and zero or more parameters to pass to that
+// Run takes a TaskFunc to execute and zero or more parameters to pass to that
 // function and immediately starts executing the function.
-func (c *AsyncCollector) Run(f CollectorFunc, args ...interface{}) {
+func (c *AsyncCollector) Run(f TaskFunc, args ...interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	task := newCollectorTask(f, args, c.resChan)
-	c.tasks = append(c.tasks, task)
+	task := NewTask(f, args...)
+
+	colTask := newCollectorTask(task, c.resChan)
+	c.tasks = append(c.tasks, colTask)
 	c.results = append(c.results, nil)
 	c.waitCount++
-	task.Start(len(c.results) - 1)
+	colTask.Start(len(c.results) - 1)
 }
 
 // Wait will wait until all tasks associated with the Collector have finished and then
@@ -108,16 +110,14 @@ type collectorResult struct {
 }
 
 type collectorTask struct {
-	f       CollectorFunc
+	task    *Task
 	closer  CollectorCloser
-	args    []interface{}
 	resChan chan<- *collectorResult
 }
 
-func newCollectorTask(f CollectorFunc, args []interface{}, resChan chan<- *collectorResult) *collectorTask {
+func newCollectorTask(task *Task, resChan chan<- *collectorResult) *collectorTask {
 	return &collectorTask{
-		f:       f,
-		args:    args,
+		task:    task,
 		resChan: resChan,
 	}
 }
@@ -127,7 +127,7 @@ func (ct *collectorTask) Start(choice int) {
 }
 
 func (ct *collectorTask) worker(choice int) {
-	res := ct.f(ct.args...)
+	res, _ := ct.task.StartSync()
 	ct.resChan <- &collectorResult{
 		Choice: choice,
 		Result: res,

@@ -25,15 +25,15 @@ func (s *AsyncColSuite) TestFitsCollector(c *C) {
 func (s *AsyncColSuite) TestWaitTimeout(c *C) {
 	col := NewAsyncCollector()
 
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(15 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(20 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(30 * time.Millisecond)
 		return NewValueResult(3, nil)
 	})
@@ -47,15 +47,15 @@ func (s *AsyncColSuite) TestWaitTimeout(c *C) {
 func (s *AsyncColSuite) TestWaitCollect(c *C) {
 	col := NewAsyncCollector()
 
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(5 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(1 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		return NewValueResult(3, nil)
 	})
 
@@ -70,15 +70,15 @@ func (s *AsyncColSuite) TestWaitCollect(c *C) {
 func (s *AsyncColSuite) TestWaitCollectMultipleWaits(c *C) {
 	col := NewAsyncCollector()
 
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(5 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(1 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		return NewValueResult(3, nil)
 	})
 
@@ -95,15 +95,15 @@ func (s *AsyncColSuite) TestWaitCollectMultipleWaits(c *C) {
 func (s *AsyncColSuite) TestWaitCloserTimeout(c *C) {
 	col := NewAsyncCollector()
 
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(15 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(10 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(5 * time.Millisecond)
 		return NewValueResult(3, nil)
 	})
@@ -129,14 +129,14 @@ func (s *AsyncColSuite) TestWaitCloserTimeout(c *C) {
 func (s *AsyncColSuite) TestWaitCloserTimeoutWithResults(c *C) {
 	col := NewAsyncCollector()
 
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(15 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		return NewValueResult(2, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(5 * time.Millisecond)
 		return NewValueResult(3, nil)
 	})
@@ -162,15 +162,15 @@ func (s *AsyncColSuite) TestWaitCloserTimeoutWithResults(c *C) {
 func (s *AsyncColSuite) TestWaitCloserCollect(c *C) {
 	col := NewAsyncCollector()
 
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(5 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(1 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		return NewValueResult(3, nil)
 	})
 
@@ -185,15 +185,15 @@ func (s *AsyncColSuite) TestWaitCloserCollect(c *C) {
 func (s *AsyncColSuite) TestWaitCloserCollectNoTimeout(c *C) {
 	col := NewAsyncCollector()
 
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(5 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		time.Sleep(1 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		return NewValueResult(3, nil)
 	})
 
@@ -208,13 +208,13 @@ func (s *AsyncColSuite) TestWaitCloserCollectNoTimeout(c *C) {
 func (s *AsyncColSuite) TestArgs(c *C) {
 	col := NewAsyncCollector()
 
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		return NewValueResult(fmt.Sprintf("r %d %d", data[0], data[1]), nil)
 	}, 1, 2)
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		return NewValueResult(fmt.Sprintf("r %d %d", data[0], data[1]), nil)
 	}, 3, 4)
-	col.Run(func(data ...interface{}) TaskResult {
+	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		return NewValueResult(fmt.Sprintf("r %d %d", data[0], data[1]), nil)
 	}, 5, 6)
 
