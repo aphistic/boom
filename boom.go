@@ -23,7 +23,7 @@ type Task struct {
 
 	statusLock sync.RWMutex
 	running    bool
-	stopping   bool
+	stopChan   chan struct{}
 	finished   bool
 
 	resultLock sync.RWMutex
@@ -34,8 +34,9 @@ type Task struct {
 // NewTask creates a new task with the given function and arguments
 func NewTask(f TaskFunc, args ...interface{}) *Task {
 	return &Task{
-		f:    f,
-		args: args,
+		f:        f,
+		args:     args,
+		stopChan: make(chan struct{}),
 	}
 }
 
@@ -69,7 +70,6 @@ func (t *Task) Start() error {
 		res := task.f(t, task.args...)
 		task.statusLock.Lock()
 		task.running = false
-		task.stopping = false
 		task.finished = true
 		task.statusLock.Unlock()
 		task.resultChan <- res
@@ -78,16 +78,25 @@ func (t *Task) Start() error {
 	return nil
 }
 
+func (t *Task) stopFlag() bool {
+	select {
+	case <-t.stopChan:
+		return true
+	default:
+		return false
+	}
+}
+
 // Stop signals a running task to stop running. It is up to the task
 // itself to check Task.Stopping() to see if it should stop.
 func (t *Task) Stop() error {
 	t.statusLock.Lock()
-	if !t.running || t.stopping {
+	if !t.running || t.stopFlag() {
 		t.statusLock.Unlock()
 		return ErrNotExecuting
 	}
 
-	t.stopping = true
+	close(t.stopChan)
 	t.statusLock.Unlock()
 
 	return nil
@@ -152,11 +161,8 @@ func (t *Task) Running() bool {
 }
 
 // Stopping returns whether a task is stopping (set by the Stop method)
-func (t *Task) Stopping() bool {
-	t.statusLock.RLock()
-	defer t.statusLock.RUnlock()
-
-	return t.stopping
+func (t *Task) Stopping() <-chan struct{} {
+	return t.stopChan
 }
 
 type ValueResult struct {
