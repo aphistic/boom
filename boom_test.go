@@ -23,9 +23,7 @@ func ExampleTask() {
 	// Create a new task but don't start execution right away
 	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
 		// Run the task until something requests that we stop
-		for !task.Stopping() {
-			time.Sleep(10 * time.Millisecond)
-		}
+		<-task.Stopping()
 		return NewValueResult(args, nil)
 	}, "first", "second", 3)
 
@@ -75,9 +73,7 @@ func (s *TaskSuite) TestStart(c *C) {
 
 func (s *TaskSuite) TestStartStop(c *C) {
 	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
-		for !task.Stopping() {
-			time.Sleep(1 * time.Millisecond)
-		}
+		<-task.Stopping()
 
 		return NewValueResult(args[0], nil)
 	}, 1)
@@ -116,9 +112,7 @@ func (s *TaskSuite) TestFinished(c *C) {
 
 func (s *TaskSuite) TestRunning(c *C) {
 	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
-		for !task.Stopping() {
-			time.Sleep(10 * time.Millisecond)
-		}
+		<-task.Stopping()
 		return NewValueResult(args[0], nil)
 	}, 1)
 
@@ -130,10 +124,7 @@ func (s *TaskSuite) TestRunning(c *C) {
 
 func (s *TaskSuite) TestWaitTwice(c *C) {
 	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
-		for !task.Stopping() {
-			time.Sleep(1 * time.Millisecond)
-		}
-
+		<-task.Stopping()
 		return NewValueResult(args[0], nil)
 	}, 1)
 
@@ -168,10 +159,7 @@ func (s *TaskSuite) TestWaitTimeout(c *C) {
 
 func (s *TaskSuite) TestStartStarted(c *C) {
 	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
-		for !task.Stopping() {
-			time.Sleep(1 * time.Millisecond)
-		}
-
+		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
 
@@ -187,10 +175,7 @@ func (s *TaskSuite) TestStartStarted(c *C) {
 
 func (s *TaskSuite) TestStopStopped(c *C) {
 	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
-		for !task.Stopping() {
-			time.Sleep(1 * time.Millisecond)
-		}
-
+		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
 
@@ -200,10 +185,7 @@ func (s *TaskSuite) TestStopStopped(c *C) {
 
 func (s *TaskSuite) TestWaitStopped(c *C) {
 	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
-		for !task.Stopping() {
-			time.Sleep(1 * time.Millisecond)
-		}
-
+		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
 
@@ -214,10 +196,7 @@ func (s *TaskSuite) TestWaitStopped(c *C) {
 
 func (s *TaskSuite) TestStopAndWait(c *C) {
 	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
-		for !task.Stopping() {
-			time.Sleep(1 * time.Millisecond)
-		}
-
+		<-task.Stopping()
 		return NewValueResult(1, nil)
 	})
 
@@ -230,10 +209,7 @@ func (s *TaskSuite) TestStopAndWait(c *C) {
 
 func (s *TaskSuite) TestStopAndWaitWhileStopped(c *C) {
 	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
-		for !task.Stopping() {
-			time.Sleep(1 * time.Millisecond)
-		}
-
+		<-task.Stopping()
 		return NewValueResult(1, nil)
 	})
 
@@ -245,10 +221,7 @@ func (s *TaskSuite) TestStopAndWaitWhileStopped(c *C) {
 func (s *TaskSuite) TestStopAndWaitTimeout(c *C) {
 	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
 		time.Sleep(25 * time.Millisecond)
-		for !task.Stopping() {
-			time.Sleep(1 * time.Millisecond)
-		}
-
+		<-task.Stopping()
 		return NewValueResult(1, nil)
 	})
 
