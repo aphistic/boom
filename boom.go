@@ -137,6 +137,20 @@ func (t *Task) Wait(timeout time.Duration) (TaskResult, error) {
 	return nil, ErrTimeout
 }
 
+// StopAndWait is a convenience function for calling both Stop() and Wait() in
+// a single call.
+func (t *Task) StopAndWait(timeout time.Duration) (TaskResult, error) {
+	err := t.Stop()
+	if err != nil {
+		return nil, err
+	}
+	res, err := t.Wait(timeout)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 // StartSync will run a task synchronously
 func (t *Task) StartSync() (TaskResult, error) {
 	t.Start()
