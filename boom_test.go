@@ -212,6 +212,51 @@ func (s *TaskSuite) TestWaitStopped(c *C) {
 	c.Check(res, IsNil)
 }
 
+func (s *TaskSuite) TestStopAndWait(c *C) {
+	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+		for !task.Stopping() {
+			time.Sleep(1 * time.Millisecond)
+		}
+
+		return NewValueResult(1, nil)
+	})
+
+	c.Assert(t.Running(), Equals, true)
+
+	res, err := t.StopAndWait(waitTimeout)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+}
+
+func (s *TaskSuite) TestStopAndWaitWhileStopped(c *C) {
+	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+		for !task.Stopping() {
+			time.Sleep(1 * time.Millisecond)
+		}
+
+		return NewValueResult(1, nil)
+	})
+
+	res, err := t.StopAndWait(waitTimeout)
+	c.Check(err, Equals, ErrNotExecuting)
+	c.Check(res, IsNil)
+}
+
+func (s *TaskSuite) TestStopAndWaitTimeout(c *C) {
+	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+		time.Sleep(25 * time.Millisecond)
+		for !task.Stopping() {
+			time.Sleep(1 * time.Millisecond)
+		}
+
+		return NewValueResult(1, nil)
+	})
+
+	res, err := t.StopAndWait(10 * time.Millisecond)
+	c.Check(err, Equals, ErrTimeout)
+	c.Check(res, IsNil)
+}
+
 func (s *TaskSuite) TestNilResult(c *C) {
 	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
 		return nil
