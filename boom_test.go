@@ -134,6 +134,7 @@ func (s *TaskSuite) TestRunning(c *C) {
 		<-advance
 		c.Log("Setting running to false")
 		task.SetRunning(false)
+		advanced <- 1
 		<-task.Stopping()
 
 		c.Log("Task returning")
@@ -147,6 +148,7 @@ func (s *TaskSuite) TestRunning(c *C) {
 	c.Check(t.Running(), Equals, true)
 	c.Log("Advancing to not running")
 	advance <- 1
+	<-advanced
 	c.Check(t.Running(), Equals, false)
 
 	c.Log("Stopping")
