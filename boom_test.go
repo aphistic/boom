@@ -110,16 +110,88 @@ func (s *TaskSuite) TestFinished(c *C) {
 	c.Check(t.Finished(), Equals, true)
 }
 
-func (s *TaskSuite) TestRunning(c *C) {
+func (s *TaskSuite) TestStarted(c *C) {
 	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	c.Check(t.Running(), Equals, true)
+	c.Check(t.Started(), Equals, true)
 
 	t.Stop()
 	t.Wait(waitTimeout)
+}
+
+func (s *TaskSuite) TestRunning(c *C) {
+	advance := make(chan int)
+	advanced := make(chan int)
+	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+		c.Log("Started task")
+		<-advance
+		c.Log("Setting running to true")
+		task.SetRunning(true)
+		advanced <- 1
+		<-advance
+		c.Log("Setting running to false")
+		task.SetRunning(false)
+		<-task.Stopping()
+
+		c.Log("Task returning")
+		return NewValueResult(nil, nil)
+	})
+
+	c.Check(t.Running(), Equals, false)
+	c.Log("Advancing to running")
+	advance <- 1
+	<-advanced
+	c.Check(t.Running(), Equals, true)
+	c.Log("Advancing to not running")
+	advance <- 1
+	c.Check(t.Running(), Equals, false)
+
+	c.Log("Stopping")
+	t.Stop()
+}
+
+func (s *TaskSuite) TestWaitForRunning(c *C) {
+	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+		task.SetRunning(true)
+		<-task.Stopping()
+
+		return NewValueResult(nil, nil)
+	})
+
+	err := t.WaitForRunning(1 * time.Second)
+	c.Check(err, IsNil)
+
+	_, err = t.StopAndWait(1 * time.Second)
+	c.Check(err, IsNil)
+}
+
+func (s *TaskSuite) TestWaitForRunningTimeout(c *C) {
+	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+		<-task.Stopping()
+		return NewValueResult(nil, nil)
+	})
+
+	err := t.WaitForRunning(100 * time.Millisecond)
+	c.Check(err, Equals, ErrTimeout)
+	_, err = t.StopAndWait(1 * time.Second)
+	c.Check(err, IsNil)
+}
+
+func (s *TaskSuite) TestRunningSetFalseWhenFinished(c *C) {
+	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+		task.SetRunning(true)
+		<-task.Stopping()
+		return NewValueResult(nil, nil)
+	})
+
+	err := t.WaitForRunning(100 * time.Millisecond)
+	c.Check(err, IsNil)
+	_, err = t.StopAndWait(1 * time.Second)
+	c.Check(err, IsNil)
+	c.Check(t.Running(), Equals, false)
 }
 
 func (s *TaskSuite) TestWaitTwice(c *C) {
@@ -183,6 +255,23 @@ func (s *TaskSuite) TestStopStopped(c *C) {
 	c.Assert(err, Equals, ErrNotExecuting)
 }
 
+func (s *TaskSuite) TestStopFlagStopped(c *C) {
+	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+		<-task.Stopping()
+		return NewValueResult(nil, nil)
+	})
+
+	err := t.Start()
+	c.Assert(err, IsNil)
+
+	c.Check(t.stopFlag(), Equals, false)
+
+	_, err = t.StopAndWait(1 * time.Second)
+	c.Assert(err, IsNil)
+
+	c.Check(t.stopFlag(), Equals, true)
+}
+
 func (s *TaskSuite) TestWaitStopped(c *C) {
 	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
@@ -200,7 +289,7 @@ func (s *TaskSuite) TestStopAndWait(c *C) {
 		return NewValueResult(1, nil)
 	})
 
-	c.Assert(t.Running(), Equals, true)
+	c.Assert(t.Started(), Equals, true)
 
 	res, err := t.StopAndWait(waitTimeout)
 	c.Assert(err, IsNil)

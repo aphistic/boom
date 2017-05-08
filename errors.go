@@ -9,7 +9,7 @@ var (
 	ErrTimeout = errors.New("Execution timed out")
 
 	// ErrExecuting is returned when a task is requested to start but is
-	// already running
+	// already started
 	ErrExecuting = errors.New("Execution has already started")
 
 	// ErrNotExecuting is returned when a task has not started executing yet

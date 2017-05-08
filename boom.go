@@ -22,9 +22,13 @@ type Task struct {
 	args []interface{}
 
 	statusLock sync.RWMutex
-	running    bool
+	started    bool
 	stopChan   chan struct{}
 	finished   bool
+
+	runLock sync.RWMutex
+	runChan chan struct{}
+	running bool
 
 	resultLock sync.RWMutex
 	resultChan chan TaskResult
@@ -37,6 +41,7 @@ func NewTask(f TaskFunc, args ...interface{}) *Task {
 		f:        f,
 		args:     args,
 		stopChan: make(chan struct{}),
+		runChan:  make(chan struct{}),
 	}
 }
 
@@ -51,7 +56,7 @@ func RunTask(f TaskFunc, args ...interface{}) *Task {
 // Start will begin execution of the task in a separate goroutine.
 func (t *Task) Start() error {
 	t.statusLock.Lock()
-	if t.running {
+	if t.started {
 		t.statusLock.Unlock()
 		return ErrExecuting
 	}
@@ -59,7 +64,7 @@ func (t *Task) Start() error {
 		t.statusLock.Unlock()
 		return ErrFinished
 	}
-	t.running = true
+	t.started = true
 	t.statusLock.Unlock()
 
 	t.resultLock.Lock()
@@ -69,13 +74,65 @@ func (t *Task) Start() error {
 	go func(task *Task) {
 		res := task.f(t, task.args...)
 		task.statusLock.Lock()
-		task.running = false
+		task.started = false
 		task.finished = true
 		task.statusLock.Unlock()
 		task.resultChan <- res
 	}(t)
 
 	return nil
+}
+
+// Started returns whether Start() has been called or not.
+func (t *Task) Started() bool {
+	t.statusLock.RLock()
+	defer t.statusLock.RUnlock()
+
+	return t.started
+}
+
+// SetRunning is a utility provided to users to signal whether a task is
+// actively running or not.  Typically this would be used within the task
+// function itself to signal that it has completed any setup it needed to
+// do and has started processing data.
+func (t *Task) SetRunning(running bool) {
+	t.runLock.Lock()
+	defer t.runLock.Unlock()
+
+	if !running {
+		t.runChan = make(chan struct{})
+	} else {
+		// If we're not already running close the run channel
+		// so anything waiting will be triggered.
+		if !t.running {
+			close(t.runChan)
+		}
+	}
+	t.running = running
+}
+
+// Running returns whether this task has been set in the 'Running' state or
+// not. See SetRunning for more information
+func (t *Task) Running() bool {
+	t.runLock.RLock()
+	defer t.runLock.RUnlock()
+
+	return t.running
+}
+
+// WaitForRunning will block until a task enters the 'Running' state or will return
+// immediately if the task is already in the 'Running' state.
+func (t *Task) WaitForRunning(timeout time.Duration) error {
+	var timeoutChan <-chan time.Time = make(chan time.Time)
+	if timeout > 0 {
+		timeoutChan = time.After(timeout)
+	}
+	select {
+	case <-t.runChan:
+		return nil
+	case <-timeoutChan:
+		return ErrTimeout
+	}
 }
 
 func (t *Task) stopFlag() bool {
@@ -87,11 +144,11 @@ func (t *Task) stopFlag() bool {
 	}
 }
 
-// Stop signals a running task to stop running. It is up to the task
+// Stop signals a started task to stop. It is up to the task
 // itself to check Task.Stopping() to see if it should stop.
 func (t *Task) Stop() error {
 	t.statusLock.Lock()
-	if !t.running || t.stopFlag() {
+	if !t.started || t.stopFlag() {
 		t.statusLock.Unlock()
 		return ErrNotExecuting
 	}
@@ -107,7 +164,7 @@ func (t *Task) Stop() error {
 // Wait will wait until the timeout duration and close the channel
 func (t *Task) Wait(timeout time.Duration) (TaskResult, error) {
 	t.statusLock.RLock()
-	if !t.running && !t.finished {
+	if !t.started && !t.finished {
 		t.statusLock.RUnlock()
 		return nil, ErrNotExecuting
 	}
@@ -131,6 +188,7 @@ func (t *Task) Wait(timeout time.Duration) (TaskResult, error) {
 		t.resultChan = nil
 		t.waitResult = res
 		t.resultLock.Unlock()
+		t.SetRunning(false)
 		return res, nil
 	case <-timeoutChan:
 	}
@@ -164,14 +222,6 @@ func (t *Task) Finished() bool {
 	defer t.statusLock.RUnlock()
 
 	return t.finished
-}
-
-// Running returns whether the task is currently executing or not.
-func (t *Task) Running() bool {
-	t.statusLock.RLock()
-	defer t.statusLock.RUnlock()
-
-	return t.running
 }
 
 // Stopping returns whether a task is stopping (set by the Stop method)
