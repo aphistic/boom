@@ -182,6 +182,18 @@ func (s *TaskSuite) TestWaitForRunningTimeout(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *TaskSuite) TestWaitForRunningTaskFinished(c *C) {
+	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+		return NewErrorResult(errors.New("I'm an error! - Ralph"))
+	})
+
+	err := t.WaitForRunning(100 * time.Millisecond)
+	c.Check(err, Equals, ErrFinished)
+	res, err := t.Wait(100 * time.Millisecond)
+	c.Check(err, IsNil)
+	c.Check(res, DeepEquals, NewErrorResult(errors.New("I'm an error! - Ralph")))
+}
+
 func (s *TaskSuite) TestRunningSetFalseWhenFinished(c *C) {
 	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
 		task.SetRunning(true)
@@ -332,6 +344,11 @@ func (s *TaskSuite) TestNilResult(c *C) {
 }
 
 func (s *TaskSuite) TestValueResultErr(c *C) {
-	res := NewValueResult(1234, errors.New("I'm an error"))
-	c.Check(res.Err(), DeepEquals, errors.New("I'm an error"))
+	res := NewValueResult(1234, errors.New("I'm an error - Ralph"))
+	c.Check(res.Err(), DeepEquals, errors.New("I'm an error - Ralph"))
+}
+
+func (s *TaskSuite) TestErrorResultErr(c *C) {
+	res := NewErrorResult(errors.New("I'm an error - Ralph"))
+	c.Check(res.Err(), DeepEquals, errors.New("I'm an error - Ralph"))
 }

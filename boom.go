@@ -128,6 +128,9 @@ func (t *Task) WaitForRunning(timeout time.Duration) error {
 		timeoutChan = time.After(timeout)
 	}
 	select {
+	case res := <-t.resultChan:
+		t.completed(res)
+		return ErrFinished
 	case <-t.runChan:
 		return nil
 	case <-timeoutChan:
@@ -183,11 +186,7 @@ func (t *Task) Wait(timeout time.Duration) (TaskResult, error) {
 
 	select {
 	case res := <-t.resultChan:
-		t.resultLock.Lock()
-		close(t.resultChan)
-		t.resultChan = nil
-		t.waitResult = res
-		t.resultLock.Unlock()
+		t.completed(res)
 		t.SetRunning(false)
 		return res, nil
 	case <-timeoutChan:
@@ -229,6 +228,15 @@ func (t *Task) Stopping() <-chan struct{} {
 	return t.stopChan
 }
 
+func (t *Task) completed(result TaskResult) {
+	t.resultLock.Lock()
+	defer t.resultLock.Unlock()
+
+	close(t.resultChan)
+	t.resultChan = nil
+	t.waitResult = result
+}
+
 type ValueResult struct {
 	Value interface{}
 	Error error
@@ -243,5 +251,19 @@ func NewValueResult(val interface{}, err error) *ValueResult {
 }
 
 func (r *ValueResult) Err() error {
+	return r.Error
+}
+
+type ErrorResult struct {
+	Error error
+}
+
+func NewErrorResult(err error) *ErrorResult {
+	return &ErrorResult{
+		Error: err,
+	}
+}
+
+func (r *ErrorResult) Err() error {
 	return r.Error
 }
