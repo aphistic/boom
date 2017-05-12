@@ -269,7 +269,7 @@ func (s *TaskSuite) TestStopStopped(c *C) {
 	c.Assert(err, Equals, ErrNotExecuting)
 }
 
-func (s *TaskSuite) TestStopFlagStopped(c *C) {
+func (s *TaskSuite) TestIsStoppingStopped(c *C) {
 	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
@@ -278,12 +278,12 @@ func (s *TaskSuite) TestStopFlagStopped(c *C) {
 	err := t.Start()
 	c.Assert(err, IsNil)
 
-	c.Check(t.stopFlag(), Equals, false)
+	c.Check(t.IsStopping(), Equals, false)
 
 	_, err = t.StopAndWait(1 * time.Second)
 	c.Assert(err, IsNil)
 
-	c.Check(t.stopFlag(), Equals, true)
+	c.Check(t.IsStopping(), Equals, true)
 }
 
 func (s *TaskSuite) TestWaitStopped(c *C) {

@@ -138,20 +138,11 @@ func (t *Task) WaitForRunning(timeout time.Duration) error {
 	}
 }
 
-func (t *Task) stopFlag() bool {
-	select {
-	case <-t.stopChan:
-		return true
-	default:
-		return false
-	}
-}
-
 // Stop signals a started task to stop. It is up to the task
 // itself to check Task.Stopping() to see if it should stop.
 func (t *Task) Stop() error {
 	t.statusLock.Lock()
-	if !t.started || t.stopFlag() {
+	if !t.started || t.IsStopping() {
 		t.statusLock.Unlock()
 		return ErrNotExecuting
 	}
@@ -223,9 +214,21 @@ func (t *Task) Finished() bool {
 	return t.finished
 }
 
-// Stopping returns whether a task is stopping (set by the Stop method)
+// Stopping returns a channel that is closed if a task is stopping (set by
+// the Stop method)
 func (t *Task) Stopping() <-chan struct{} {
 	return t.stopChan
+}
+
+// IsStopping is a convenience method to check if the Stopping() channel is
+// closed
+func (t *Task) IsStopping() bool {
+	select {
+	case <-t.stopChan:
+		return true
+	default:
+		return false
+	}
 }
 
 func (t *Task) completed(result TaskResult) {
