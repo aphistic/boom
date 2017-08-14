@@ -2,16 +2,17 @@ package boom
 
 import (
 	"fmt"
+	"sync"
+	"testing"
 	"time"
 
-	. "gopkg.in/check.v1"
+	"github.com/efritz/glock"
+	. "github.com/onsi/gomega"
 )
 
 type AsyncColSuite struct{}
 
-var _ = Suite(&AsyncColSuite{})
-
-func (s *AsyncColSuite) TestFitsCollector(c *C) {
+func (s *AsyncColSuite) TestFitsCollector(t *testing.T) {
 	// Somehow I missed that AsyncCollector didn't match the Collector interface
 	// so this is here to make sure I can't accidentally do that again.
 
@@ -22,144 +23,153 @@ func (s *AsyncColSuite) TestFitsCollector(c *C) {
 	}(col)
 }
 
-func (s *AsyncColSuite) TestWaitTimeout(c *C) {
-	col := NewAsyncCollector()
+func (s *AsyncColSuite) TestWaitTimeout(t *testing.T) {
+	clock := glock.NewMockClock()
 
+	col := NewAsyncCollector(WithClock(clock))
+
+	var running sync.WaitGroup
+	running.Add(3)
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(15 * time.Millisecond)
+		running.Done()
+		clock.Sleep(15 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(20 * time.Millisecond)
+		running.Done()
+		clock.Sleep(20 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(30 * time.Millisecond)
+		running.Done()
+		clock.Sleep(30 * time.Millisecond)
 		return NewValueResult(3, nil)
 	})
 
+	// Wait for goroutines to start
+	running.Wait()
+
+	go clock.BlockingAdvance(10 * time.Millisecond)
+
 	res, err := col.Wait(10 * time.Millisecond)
-	c.Check(res, IsNil)
-	c.Check(err, NotNil)
-	c.Check(err, Equals, ErrTimeout)
+	Expect(res).To(BeNil())
+	Expect(err).ToNot(BeNil())
+	Expect(err).To(Equal(ErrTimeout))
 }
 
-func (s *AsyncColSuite) TestWaitCollect(c *C) {
-	col := NewAsyncCollector()
+func (s *AsyncColSuite) TestWaitCollect(t *testing.T) {
+	clock := glock.NewMockClock()
 
+	col := NewAsyncCollector(WithClock(clock))
+
+	var running sync.WaitGroup
+	running.Add(3)
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(5 * time.Millisecond)
+		running.Done()
+		clock.Sleep(5 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(1 * time.Millisecond)
+		running.Done()
+		clock.Sleep(1 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
+		running.Done()
 		return NewValueResult(3, nil)
 	})
 
+	// Wait until all the goroutines have started
+	running.Wait()
+
+	// Advance time so blocking tasks can finish
+	go clock.BlockingAdvance(5 * time.Millisecond)
+
 	res, err := col.Wait(10 * time.Millisecond)
-	c.Check(err, IsNil)
-	c.Check(res, NotNil)
-	c.Check(res[0], DeepEquals, &ValueResult{Value: 1, Error: nil})
-	c.Check(res[1], DeepEquals, &ValueResult{Value: 2, Error: nil})
-	c.Check(res[2], DeepEquals, &ValueResult{Value: 3, Error: nil})
+	Expect(err).To(BeNil())
+	Expect(res).ToNot(BeNil())
+	Expect(res[0]).To(Equal(&ValueResult{Value: 1, Error: nil}))
+	Expect(res[1]).To(Equal(&ValueResult{Value: 2, Error: nil}))
+	Expect(res[2]).To(Equal(&ValueResult{Value: 3, Error: nil}))
 }
 
-func (s *AsyncColSuite) TestWaitCollectMultipleWaits(c *C) {
-	col := NewAsyncCollector()
+func (s *AsyncColSuite) TestWaitCollectMultipleWaits(t *testing.T) {
+	clock := glock.NewMockClock()
 
+	col := NewAsyncCollector(WithClock(clock))
+
+	var running sync.WaitGroup
+	running.Add(3)
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(5 * time.Millisecond)
+		running.Done()
+		clock.Sleep(5 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(1 * time.Millisecond)
+		running.Done()
+		clock.Sleep(1 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
+		running.Done()
 		return NewValueResult(3, nil)
 	})
 
+	running.Wait()
+
+	go clock.Advance(5 * time.Millisecond)
+
 	res, err := col.Wait(10 * time.Millisecond)
-	c.Check(err, IsNil)
-	c.Check(res, NotNil)
+	Expect(err).To(BeNil())
+	Expect(res).ToNot(BeNil())
 
 	res, err = col.Wait(10 * time.Millisecond)
-	c.Check(err, NotNil)
-	c.Check(err, Equals, ErrFinished)
-	c.Check(res, IsNil)
+	Expect(err).ToNot(BeNil())
+	Expect(err).To(Equal(ErrFinished))
+	Expect(res).To(BeNil())
 }
 
-func (s *AsyncColSuite) TestWaitCloserTimeout(c *C) {
-	col := NewAsyncCollector()
+func (s *AsyncColSuite) TestWaitCloserTimeout(t *testing.T) {
+	clock := glock.NewMockClock()
 
+	col := NewAsyncCollector(WithClock(clock))
+
+	var running sync.WaitGroup
+	running.Add(3)
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(15 * time.Millisecond)
+		running.Done()
+		clock.Sleep(15 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(10 * time.Millisecond)
+		running.Done()
+		clock.Sleep(10 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(5 * time.Millisecond)
+		running.Done()
+		clock.Sleep(5 * time.Millisecond)
 		return NewValueResult(3, nil)
 	})
 
-	closeChan := make(chan int)
-	res, err := col.WaitCloser(1*time.Millisecond, func(res TaskResult) {
-		valResult := res.(*ValueResult)
-		resNum := valResult.Value.(int)
-		closeChan <- resNum
-	})
-	c.Check(res, IsNil)
-	c.Check(err, NotNil)
-	c.Check(err, Equals, ErrTimeout)
+	running.Wait()
 
-	num := <-closeChan
-	c.Check(num, Equals, 3)
-	num = <-closeChan
-	c.Check(num, Equals, 2)
-	num = <-closeChan
-	c.Check(num, Equals, 1)
+	var closed sync.WaitGroup
+	closed.Add(3)
+	go clock.BlockingAdvance(20 * time.Millisecond)
+	res, err := col.WaitCloser(1*time.Millisecond, func(res TaskResult) {
+		closed.Done()
+	})
+	Expect(res).To(BeNil())
+	Expect(err).ToNot(BeNil())
+	Expect(err).To(Equal(ErrTimeout))
+
+	// If this returns we know it's successful because all 3 tasks called
+	// done on the wait group
+	closed.Wait()
 }
 
-func (s *AsyncColSuite) TestWaitCloserTimeoutWithResults(c *C) {
-	col := NewAsyncCollector()
-
-	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(15 * time.Millisecond)
-		return NewValueResult(1, nil)
-	})
-	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		return NewValueResult(2, nil)
-	})
-	col.Run(func(task *Task, data ...interface{}) TaskResult {
-		time.Sleep(5 * time.Millisecond)
-		return NewValueResult(3, nil)
-	})
-
-	closeChan := make(chan int)
-	res, err := col.WaitCloser(1*time.Millisecond, func(res TaskResult) {
-		valResult := res.(*ValueResult)
-		resNum := valResult.Value.(int)
-		closeChan <- resNum
-	})
-	c.Check(res, IsNil)
-	c.Check(err, NotNil)
-	c.Check(err, Equals, ErrTimeout)
-
-	num := <-closeChan
-	c.Check(num, Equals, 2)
-	num = <-closeChan
-	c.Check(num, Equals, 3)
-	num = <-closeChan
-	c.Check(num, Equals, 1)
-}
-
-func (s *AsyncColSuite) TestWaitCloserCollect(c *C) {
+func (s *AsyncColSuite) TestWaitCloserCollect(t *testing.T) {
 	col := NewAsyncCollector()
 
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
@@ -175,14 +185,14 @@ func (s *AsyncColSuite) TestWaitCloserCollect(c *C) {
 	})
 
 	res, err := col.WaitCloser(10*time.Millisecond, func(res TaskResult) {})
-	c.Check(err, IsNil)
-	c.Check(res, NotNil)
-	c.Check(res[0], DeepEquals, &ValueResult{Value: 1, Error: nil})
-	c.Check(res[1], DeepEquals, &ValueResult{Value: 2, Error: nil})
-	c.Check(res[2], DeepEquals, &ValueResult{Value: 3, Error: nil})
+	Expect(err).To(BeNil())
+	Expect(res).ToNot(BeNil())
+	Expect(res[0]).To(Equal(&ValueResult{Value: 1, Error: nil}))
+	Expect(res[1]).To(Equal(&ValueResult{Value: 2, Error: nil}))
+	Expect(res[2]).To(Equal(&ValueResult{Value: 3, Error: nil}))
 }
 
-func (s *AsyncColSuite) TestWaitCloserCollectNoTimeout(c *C) {
+func (s *AsyncColSuite) TestWaitCloserCollectNoTimeout(t *testing.T) {
 	col := NewAsyncCollector()
 
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
@@ -198,14 +208,14 @@ func (s *AsyncColSuite) TestWaitCloserCollectNoTimeout(c *C) {
 	})
 
 	res, err := col.WaitCloser(0, func(res TaskResult) {})
-	c.Check(err, IsNil)
-	c.Check(res, NotNil)
-	c.Check(res[0], DeepEquals, &ValueResult{Value: 1, Error: nil})
-	c.Check(res[1], DeepEquals, &ValueResult{Value: 2, Error: nil})
-	c.Check(res[2], DeepEquals, &ValueResult{Value: 3, Error: nil})
+	Expect(err).To(BeNil())
+	Expect(res).ToNot(BeNil())
+	Expect(res[0]).To(Equal(&ValueResult{Value: 1, Error: nil}))
+	Expect(res[1]).To(Equal(&ValueResult{Value: 2, Error: nil}))
+	Expect(res[2]).To(Equal(&ValueResult{Value: 3, Error: nil}))
 }
 
-func (s *AsyncColSuite) TestArgs(c *C) {
+func (s *AsyncColSuite) TestArgs(t *testing.T) {
 	col := NewAsyncCollector()
 
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
@@ -219,9 +229,9 @@ func (s *AsyncColSuite) TestArgs(c *C) {
 	}, 5, 6)
 
 	res, err := col.Wait(10 * time.Millisecond)
-	c.Check(err, IsNil)
-	c.Check(res, NotNil)
-	c.Check(res[0], DeepEquals, &ValueResult{Value: "r 1 2", Error: nil})
-	c.Check(res[1], DeepEquals, &ValueResult{Value: "r 3 4", Error: nil})
-	c.Check(res[2], DeepEquals, &ValueResult{Value: "r 5 6", Error: nil})
+	Expect(err).To(BeNil())
+	Expect(res).ToNot(BeNil())
+	Expect(res[0]).To(Equal(&ValueResult{Value: "r 1 2", Error: nil}))
+	Expect(res[1]).To(Equal(&ValueResult{Value: "r 3 4", Error: nil}))
+	Expect(res[2]).To(Equal(&ValueResult{Value: "r 5 6", Error: nil}))
 }

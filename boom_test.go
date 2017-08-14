@@ -2,33 +2,41 @@ package boom
 
 import (
 	"errors"
+	"fmt"
 	"testing"
-
 	"time"
 
-	"fmt"
-
-	. "gopkg.in/check.v1"
+	"github.com/aphistic/sweet"
+	junit "github.com/aphistic/sweet-junit"
+	. "github.com/onsi/gomega"
 )
 
-func Test(t *testing.T) { TestingT(t) }
+func TestMain(m *testing.M) {
+	RegisterFailHandler(sweet.GomegaFail)
+
+	sweet.Run(m, func(s *sweet.S) {
+		s.RegisterPlugin(junit.NewPlugin())
+
+		s.AddSuite(&TaskSuite{})
+		s.AddSuite(&RunnerSuite{})
+		s.AddSuite(&AsyncColSuite{})
+	})
+}
 
 type TaskSuite struct{}
-
-var _ = Suite(&TaskSuite{})
 
 const waitTimeout = 10 * time.Millisecond
 
 func ExampleTask() {
 	// Create a new task but don't start execution right away
-	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+	t := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		// Run the task until something requests that we stop
 		<-task.Stopping()
 		return NewValueResult(args, nil)
 	}, "first", "second", 3)
 
 	// Start the Task. Another way to do this in a single command is to use
-	// RunTask() to create a new task and start it right away
+	// runTask(newTaskConfig(), ) to create a new task and start it right away
 	t.Start()
 
 	// Let the task run a little bit
@@ -51,304 +59,304 @@ func ExampleTask() {
 	// Error: <nil>
 }
 
-func (s *TaskSuite) TestStartSync(c *C) {
-	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStartSync(t *testing.T) {
+	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	res, err := t.StartSync()
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+	res, err := task.StartSync()
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStart(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStart(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	res, err := t.Wait(waitTimeout)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+	res, err := task.Wait(waitTimeout)
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStartStop(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStartStop(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	t.Stop()
+	task.Stop()
 
-	res, err := t.Wait(waitTimeout)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+	res, err := task.Wait(waitTimeout)
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStartFinished(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStartFinished(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	res, err := t.Wait(waitTimeout)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+	res, err := task.Wait(waitTimeout)
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 
-	err = t.Start()
-	c.Check(err, Equals, ErrFinished)
+	err = task.Start()
+	Expect(err).To(Equal(ErrFinished))
 }
 
-func (s *TaskSuite) TestFinished(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestFinished(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	res, err := t.Wait(waitTimeout)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+	res, err := task.Wait(waitTimeout)
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 
-	c.Check(t.Finished(), Equals, true)
+	Expect(task.Finished()).To(Equal(true))
 }
 
-func (s *TaskSuite) TestStarted(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStarted(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	c.Check(t.Started(), Equals, true)
+	Expect(task.Started()).To(Equal(true))
 
-	t.Stop()
-	t.Wait(waitTimeout)
+	task.Stop()
+	task.Wait(waitTimeout)
 }
 
-func (s *TaskSuite) TestRunning(c *C) {
+func (s *TaskSuite) TestRunning(t *testing.T) {
 	advance := make(chan int)
 	advanced := make(chan int)
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
-		c.Log("Started task")
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+		//c.Log("Started task")
 		<-advance
-		c.Log("Setting running to true")
+		//c.Log("Setting running to true")
 		task.SetRunning(true)
 		advanced <- 1
 		<-advance
-		c.Log("Setting running to false")
+		//c.Log("Setting running to false")
 		task.SetRunning(false)
 		advanced <- 1
 		<-task.Stopping()
 
-		c.Log("Task returning")
+		//c.Log("Task returning")
 		return NewValueResult(nil, nil)
 	})
 
-	c.Check(t.Running(), Equals, false)
-	c.Log("Advancing to running")
+	Expect(task.Running()).To(Equal(false))
+	//c.Log("Advancing to running")
 	advance <- 1
 	<-advanced
-	c.Check(t.Running(), Equals, true)
-	c.Log("Advancing to not running")
+	Expect(task.Running()).To(Equal(true))
+	//c.Log("Advancing to not running")
 	advance <- 1
 	<-advanced
-	c.Check(t.Running(), Equals, false)
+	Expect(task.Running()).To(Equal(false))
 
-	c.Log("Stopping")
-	t.Stop()
+	//c.Log("Stopping")
+	task.Stop()
 }
 
-func (s *TaskSuite) TestWaitForRunning(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestWaitForRunning(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		task.SetRunning(true)
 		<-task.Stopping()
 
 		return NewValueResult(nil, nil)
 	})
 
-	err := t.WaitForRunning(1 * time.Second)
-	c.Check(err, IsNil)
+	err := task.WaitForRunning(1 * time.Second)
+	Expect(err).To(BeNil())
 
-	_, err = t.StopAndWait(1 * time.Second)
-	c.Check(err, IsNil)
+	_, err = task.StopAndWait(1 * time.Second)
+	Expect(err).To(BeNil())
 }
 
-func (s *TaskSuite) TestWaitForRunningTimeout(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestWaitForRunningTimeout(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
 
-	err := t.WaitForRunning(100 * time.Millisecond)
-	c.Check(err, Equals, ErrTimeout)
-	_, err = t.StopAndWait(1 * time.Second)
-	c.Check(err, IsNil)
+	err := task.WaitForRunning(100 * time.Millisecond)
+	Expect(err).To(Equal(ErrTimeout))
+	_, err = task.StopAndWait(1 * time.Second)
+	Expect(err).To(BeNil())
 }
 
-func (s *TaskSuite) TestWaitForRunningTaskFinished(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestWaitForRunningTaskFinished(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewErrorResult(errors.New("I'm an error! - Ralph"))
 	})
 
-	err := t.WaitForRunning(100 * time.Millisecond)
-	c.Check(err, Equals, ErrFinished)
-	res, err := t.Wait(100 * time.Millisecond)
-	c.Check(err, IsNil)
-	c.Check(res, DeepEquals, NewErrorResult(errors.New("I'm an error! - Ralph")))
+	err := task.WaitForRunning(100 * time.Millisecond)
+	Expect(err).To(Equal(ErrFinished))
+	res, err := task.Wait(100 * time.Millisecond)
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(NewErrorResult(errors.New("I'm an error! - Ralph"))))
 }
 
-func (s *TaskSuite) TestRunningSetFalseWhenFinished(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestRunningSetFalseWhenFinished(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		task.SetRunning(true)
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
 
-	err := t.WaitForRunning(100 * time.Millisecond)
-	c.Check(err, IsNil)
-	_, err = t.StopAndWait(1 * time.Second)
-	c.Check(err, IsNil)
-	c.Check(t.Running(), Equals, false)
+	err := task.WaitForRunning(100 * time.Millisecond)
+	Expect(err).To(BeNil())
+	_, err = task.StopAndWait(1 * time.Second)
+	Expect(err).To(BeNil())
+	Expect(task.Running()).To(Equal(false))
 }
 
-func (s *TaskSuite) TestWaitTwice(c *C) {
-	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestWaitTwice(t *testing.T) {
+	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	t.Start()
-	t.Stop()
+	task.Start()
+	task.Stop()
 
-	res, err := t.Wait(waitTimeout)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+	res, err := task.Wait(waitTimeout)
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 
-	res, err = t.Wait(waitTimeout)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+	res, err = task.Wait(waitTimeout)
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestWaitTimeout(c *C) {
-	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestWaitTimeout(t *testing.T) {
+	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		time.Sleep(100 * time.Millisecond)
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	t.Start()
+	task.Start()
 
-	res, err := t.Wait(10 * time.Millisecond)
-	c.Assert(err, Equals, ErrTimeout)
-	c.Check(res, IsNil)
+	res, err := task.Wait(10 * time.Millisecond)
+	Expect(err).To(Equal(ErrTimeout))
+	Expect(res).To(BeNil())
 
-	res, err = t.Wait(200 * time.Millisecond)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+	res, err = task.Wait(200 * time.Millisecond)
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStartStarted(c *C) {
-	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStartStarted(t *testing.T) {
+	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
 
-	err := t.Start()
-	c.Assert(err, IsNil)
-	err = t.Start()
-	c.Assert(err, NotNil)
-	c.Check(err, Equals, ErrExecuting)
+	err := task.Start()
+	Expect(err).To(BeNil())
+	err = task.Start()
+	Expect(err).ToNot(BeNil())
+	Expect(err).To(Equal(ErrExecuting))
 
-	t.Stop()
-	t.Wait(waitTimeout)
+	task.Stop()
+	task.Wait(waitTimeout)
 }
 
-func (s *TaskSuite) TestStopStopped(c *C) {
-	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStopStopped(t *testing.T) {
+	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
 
-	err := t.Stop()
-	c.Assert(err, Equals, ErrNotExecuting)
+	err := task.Stop()
+	Expect(err).To(Equal(ErrNotExecuting))
 }
 
-func (s *TaskSuite) TestIsStoppingStopped(c *C) {
-	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestIsStoppingStopped(t *testing.T) {
+	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
 
-	err := t.Start()
-	c.Assert(err, IsNil)
+	err := task.Start()
+	Expect(err).To(BeNil())
 
-	c.Check(t.IsStopping(), Equals, false)
+	Expect(task.IsStopping()).To(Equal(false))
 
-	_, err = t.StopAndWait(1 * time.Second)
-	c.Assert(err, IsNil)
+	_, err = task.StopAndWait(1 * time.Second)
+	Expect(err).To(BeNil())
 
-	c.Check(t.IsStopping(), Equals, true)
+	Expect(task.IsStopping()).To(Equal(true))
 }
 
-func (s *TaskSuite) TestWaitStopped(c *C) {
-	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestWaitStopped(t *testing.T) {
+	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
 
-	res, err := t.Wait(waitTimeout)
-	c.Assert(err, Equals, ErrNotExecuting)
-	c.Check(res, IsNil)
+	res, err := task.Wait(waitTimeout)
+	Expect(err).To(Equal(ErrNotExecuting))
+	Expect(res).To(BeNil())
 }
 
-func (s *TaskSuite) TestStopAndWait(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStopAndWait(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(1, nil)
 	})
 
-	c.Assert(t.Started(), Equals, true)
+	Expect(task.Started()).To(Equal(true))
 
-	res, err := t.StopAndWait(waitTimeout)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, &ValueResult{Value: 1, Error: nil})
+	res, err := task.StopAndWait(waitTimeout)
+	Expect(err).To(BeNil())
+	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStopAndWaitWhileStopped(c *C) {
-	t := NewTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStopAndWaitWhileStopped(t *testing.T) {
+	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(1, nil)
 	})
 
-	res, err := t.StopAndWait(waitTimeout)
-	c.Check(err, Equals, ErrNotExecuting)
-	c.Check(res, IsNil)
+	res, err := task.StopAndWait(waitTimeout)
+	Expect(err).To(Equal(ErrNotExecuting))
+	Expect(res).To(BeNil())
 }
 
-func (s *TaskSuite) TestStopAndWaitTimeout(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestStopAndWaitTimeout(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		time.Sleep(25 * time.Millisecond)
 		<-task.Stopping()
 		return NewValueResult(1, nil)
 	})
 
-	res, err := t.StopAndWait(10 * time.Millisecond)
-	c.Check(err, Equals, ErrTimeout)
-	c.Check(res, IsNil)
+	res, err := task.StopAndWait(10 * time.Millisecond)
+	Expect(err).To(Equal(ErrTimeout))
+	Expect(res).To(BeNil())
 }
 
-func (s *TaskSuite) TestNilResult(c *C) {
-	t := RunTask(func(task *Task, args ...interface{}) TaskResult {
+func (s *TaskSuite) TestNilResult(t *testing.T) {
+	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return nil
 	})
 
-	res, err := t.Wait(waitTimeout)
-	c.Assert(err, IsNil)
-	c.Check(res, IsNil)
+	res, err := task.Wait(waitTimeout)
+	Expect(err).To(BeNil())
+	Expect(res).To(BeNil())
 }
 
-func (s *TaskSuite) TestValueResultErr(c *C) {
+func (s *TaskSuite) TestValueResultErr(t *testing.T) {
 	res := NewValueResult(1234, errors.New("I'm an error - Ralph"))
-	c.Check(res.Err(), DeepEquals, errors.New("I'm an error - Ralph"))
+	Expect(res.Err()).To(Equal(errors.New("I'm an error - Ralph")))
 }
 
-func (s *TaskSuite) TestErrorResultErr(c *C) {
+func (s *TaskSuite) TestErrorResultErr(t *testing.T) {
 	res := NewErrorResult(errors.New("I'm an error - Ralph"))
-	c.Check(res.Err(), DeepEquals, errors.New("I'm an error - Ralph"))
+	Expect(res.Err()).To(Equal(errors.New("I'm an error - Ralph")))
 }

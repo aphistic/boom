@@ -18,6 +18,8 @@ type TaskResult interface {
 
 // Task represents a task being executed within boom
 type Task struct {
+	cfg *taskConfig
+
 	f    TaskFunc
 	args []interface{}
 
@@ -35,9 +37,11 @@ type Task struct {
 	waitResult TaskResult
 }
 
-// NewTask creates a new task with the given function and arguments
-func NewTask(f TaskFunc, args ...interface{}) *Task {
+// newTask creates a new task with the given function and arguments
+func newTask(cfg *taskConfig, f TaskFunc, args ...interface{}) *Task {
 	return &Task{
+		cfg: cfg,
+
 		f:        f,
 		args:     args,
 		stopChan: make(chan struct{}),
@@ -47,8 +51,8 @@ func NewTask(f TaskFunc, args ...interface{}) *Task {
 
 // RunTask will create a new task and immediately call Start() to
 // begin executing the task.
-func RunTask(f TaskFunc, args ...interface{}) *Task {
-	task := NewTask(f, args...)
+func runTask(cfg *taskConfig, f TaskFunc, args ...interface{}) *Task {
+	task := newTask(cfg, f, args...)
 	task.Start()
 	return task
 }
@@ -125,7 +129,7 @@ func (t *Task) Running() bool {
 func (t *Task) WaitForRunning(timeout time.Duration) error {
 	var timeoutChan <-chan time.Time = make(chan time.Time)
 	if timeout > 0 {
-		timeoutChan = time.After(timeout)
+		timeoutChan = t.cfg.clock.After(timeout)
 	}
 	select {
 	case res := <-t.resultChan:
@@ -172,7 +176,7 @@ func (t *Task) Wait(timeout time.Duration) (TaskResult, error) {
 
 	var timeoutChan <-chan time.Time = make(chan time.Time)
 	if timeout > 0 {
-		timeoutChan = time.After(timeout)
+		timeoutChan = t.cfg.clock.After(timeout)
 	}
 
 	select {

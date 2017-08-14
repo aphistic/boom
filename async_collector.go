@@ -8,6 +8,7 @@ import (
 // AsyncCollector can take a number of tasks, execute them in parallel, and then collect
 // the results of those tasks once all have been completed.
 type AsyncCollector struct {
+	cfg       *taskConfig
 	lock      sync.Mutex
 	waitCount int
 	tasks     []*collectorTask
@@ -16,8 +17,12 @@ type AsyncCollector struct {
 }
 
 // NewAsyncCollector creates a new AsyncCollector instance
-func NewAsyncCollector() *AsyncCollector {
+func NewAsyncCollector(configs ...TaskConfig) *AsyncCollector {
+	cfg := newTaskConfig()
+	cfg.ApplyConfigs(configs)
+
 	return &AsyncCollector{
+		cfg:       cfg,
 		waitCount: 0,
 		tasks:     make([]*collectorTask, 0),
 		results:   make([]TaskResult, 0),
@@ -52,7 +57,7 @@ func (c *AsyncCollector) Run(f TaskFunc, args ...interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	task := NewTask(f, args...)
+	task := newTask(c.cfg, f, args...)
 
 	colTask := newCollectorTask(task, c.resChan)
 	c.tasks = append(c.tasks, colTask)
@@ -81,7 +86,7 @@ func (c *AsyncCollector) WaitCloser(timeout time.Duration, closer CollectorClose
 
 	var timeoutChan <-chan time.Time
 	if timeout > 0 {
-		timeoutChan = time.After(timeout)
+		timeoutChan = c.cfg.clock.After(timeout)
 	} else {
 		timeoutChan = make(chan time.Time)
 	}
