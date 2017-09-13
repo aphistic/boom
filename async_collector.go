@@ -81,7 +81,7 @@ func (c *AsyncCollector) WaitCloser(timeout time.Duration, closer CollectorClose
 	defer c.lock.Unlock()
 
 	if c.waitCount == 0 {
-		return nil, ErrFinished
+		return c.results, nil
 	}
 
 	var timeoutChan <-chan time.Time

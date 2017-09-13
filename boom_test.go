@@ -59,7 +59,7 @@ func ExampleTask() {
 	// Error: <nil>
 }
 
-func (s *TaskSuite) TestStartSync(t *testing.T) {
+func (s *TaskSuite) TestStartSync(t sweet.T) {
 	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
@@ -69,7 +69,7 @@ func (s *TaskSuite) TestStartSync(t *testing.T) {
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStart(t *testing.T) {
+func (s *TaskSuite) TestStart(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
@@ -79,7 +79,7 @@ func (s *TaskSuite) TestStart(t *testing.T) {
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStartStop(t *testing.T) {
+func (s *TaskSuite) TestStartStop(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 
@@ -93,7 +93,7 @@ func (s *TaskSuite) TestStartStop(t *testing.T) {
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStartFinished(t *testing.T) {
+func (s *TaskSuite) TestStartFinished(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
@@ -106,7 +106,7 @@ func (s *TaskSuite) TestStartFinished(t *testing.T) {
 	Expect(err).To(Equal(ErrFinished))
 }
 
-func (s *TaskSuite) TestFinished(t *testing.T) {
+func (s *TaskSuite) TestFinished(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
@@ -118,7 +118,7 @@ func (s *TaskSuite) TestFinished(t *testing.T) {
 	Expect(task.Finished()).To(Equal(true))
 }
 
-func (s *TaskSuite) TestStarted(t *testing.T) {
+func (s *TaskSuite) TestStarted(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(args[0], nil)
@@ -130,7 +130,7 @@ func (s *TaskSuite) TestStarted(t *testing.T) {
 	task.Wait(waitTimeout)
 }
 
-func (s *TaskSuite) TestRunning(t *testing.T) {
+func (s *TaskSuite) TestRunning(t sweet.T) {
 	advance := make(chan int)
 	advanced := make(chan int)
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
@@ -163,7 +163,7 @@ func (s *TaskSuite) TestRunning(t *testing.T) {
 	task.Stop()
 }
 
-func (s *TaskSuite) TestWaitForRunning(t *testing.T) {
+func (s *TaskSuite) TestWaitForRunning(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		task.SetRunning(true)
 		<-task.Stopping()
@@ -178,7 +178,7 @@ func (s *TaskSuite) TestWaitForRunning(t *testing.T) {
 	Expect(err).To(BeNil())
 }
 
-func (s *TaskSuite) TestWaitForRunningTimeout(t *testing.T) {
+func (s *TaskSuite) TestWaitForRunningTimeout(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
@@ -190,7 +190,7 @@ func (s *TaskSuite) TestWaitForRunningTimeout(t *testing.T) {
 	Expect(err).To(BeNil())
 }
 
-func (s *TaskSuite) TestWaitForRunningTaskFinished(t *testing.T) {
+func (s *TaskSuite) TestWaitForRunningTaskFinished(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewErrorResult(errors.New("I'm an error! - Ralph"))
 	})
@@ -202,7 +202,7 @@ func (s *TaskSuite) TestWaitForRunningTaskFinished(t *testing.T) {
 	Expect(res).To(Equal(NewErrorResult(errors.New("I'm an error! - Ralph"))))
 }
 
-func (s *TaskSuite) TestRunningSetFalseWhenFinished(t *testing.T) {
+func (s *TaskSuite) TestRunningSetFalseWhenFinished(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		task.SetRunning(true)
 		<-task.Stopping()
@@ -216,7 +216,7 @@ func (s *TaskSuite) TestRunningSetFalseWhenFinished(t *testing.T) {
 	Expect(task.Running()).To(Equal(false))
 }
 
-func (s *TaskSuite) TestWaitTwice(t *testing.T) {
+func (s *TaskSuite) TestWaitTwice(t sweet.T) {
 	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(args[0], nil)
@@ -234,7 +234,7 @@ func (s *TaskSuite) TestWaitTwice(t *testing.T) {
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestWaitTimeout(t *testing.T) {
+func (s *TaskSuite) TestWaitTimeout(t sweet.T) {
 	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		time.Sleep(100 * time.Millisecond)
 		return NewValueResult(args[0], nil)
@@ -251,7 +251,7 @@ func (s *TaskSuite) TestWaitTimeout(t *testing.T) {
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStartStarted(t *testing.T) {
+func (s *TaskSuite) TestStartStarted(t sweet.T) {
 	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
@@ -267,7 +267,7 @@ func (s *TaskSuite) TestStartStarted(t *testing.T) {
 	task.Wait(waitTimeout)
 }
 
-func (s *TaskSuite) TestStopStopped(t *testing.T) {
+func (s *TaskSuite) TestStopStopped(t sweet.T) {
 	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
@@ -277,7 +277,7 @@ func (s *TaskSuite) TestStopStopped(t *testing.T) {
 	Expect(err).To(Equal(ErrNotExecuting))
 }
 
-func (s *TaskSuite) TestIsStoppingStopped(t *testing.T) {
+func (s *TaskSuite) TestIsStoppingStopped(t sweet.T) {
 	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
@@ -294,7 +294,7 @@ func (s *TaskSuite) TestIsStoppingStopped(t *testing.T) {
 	Expect(task.IsStopping()).To(Equal(true))
 }
 
-func (s *TaskSuite) TestWaitStopped(t *testing.T) {
+func (s *TaskSuite) TestWaitStopped(t sweet.T) {
 	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
@@ -305,7 +305,7 @@ func (s *TaskSuite) TestWaitStopped(t *testing.T) {
 	Expect(res).To(BeNil())
 }
 
-func (s *TaskSuite) TestStopAndWait(t *testing.T) {
+func (s *TaskSuite) TestStopAndWait(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(1, nil)
@@ -318,7 +318,7 @@ func (s *TaskSuite) TestStopAndWait(t *testing.T) {
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
-func (s *TaskSuite) TestStopAndWaitWhileStopped(t *testing.T) {
+func (s *TaskSuite) TestStopAndWaitWhileStopped(t sweet.T) {
 	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(1, nil)
@@ -329,7 +329,7 @@ func (s *TaskSuite) TestStopAndWaitWhileStopped(t *testing.T) {
 	Expect(res).To(BeNil())
 }
 
-func (s *TaskSuite) TestStopAndWaitTimeout(t *testing.T) {
+func (s *TaskSuite) TestStopAndWaitTimeout(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		time.Sleep(25 * time.Millisecond)
 		<-task.Stopping()
@@ -341,7 +341,7 @@ func (s *TaskSuite) TestStopAndWaitTimeout(t *testing.T) {
 	Expect(res).To(BeNil())
 }
 
-func (s *TaskSuite) TestNilResult(t *testing.T) {
+func (s *TaskSuite) TestNilResult(t sweet.T) {
 	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return nil
 	})
@@ -351,12 +351,12 @@ func (s *TaskSuite) TestNilResult(t *testing.T) {
 	Expect(res).To(BeNil())
 }
 
-func (s *TaskSuite) TestValueResultErr(t *testing.T) {
+func (s *TaskSuite) TestValueResultErr(t sweet.T) {
 	res := NewValueResult(1234, errors.New("I'm an error - Ralph"))
 	Expect(res.Err()).To(Equal(errors.New("I'm an error - Ralph")))
 }
 
-func (s *TaskSuite) TestErrorResultErr(t *testing.T) {
+func (s *TaskSuite) TestErrorResultErr(t sweet.T) {
 	res := NewErrorResult(errors.New("I'm an error - Ralph"))
 	Expect(res.Err()).To(Equal(errors.New("I'm an error - Ralph")))
 }

@@ -1,16 +1,16 @@
 package boom
 
 import (
-	"testing"
 	"time"
 
+	"github.com/aphistic/sweet"
 	"github.com/efritz/glock"
 	. "github.com/onsi/gomega"
 )
 
 type RunnerSuite struct{}
 
-func (s *RunnerSuite) TestNewTask(t *testing.T) {
+func (s *RunnerSuite) TestNewTask(t sweet.T) {
 	clock := glock.NewMockClockAt(time.Unix(100, 0))
 
 	tr := NewTaskRunner(WithClock(clock))
@@ -29,7 +29,7 @@ func (s *RunnerSuite) TestNewTask(t *testing.T) {
 	Expect(res).To(Equal(NewValueResult(5, nil)))
 }
 
-func (s *RunnerSuite) TestRunTask(t *testing.T) {
+func (s *RunnerSuite) TestRunTask(t sweet.T) {
 	clock := glock.NewRealClock()
 
 	tr := NewTaskRunner(WithClock(clock))

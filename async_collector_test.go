@@ -3,16 +3,16 @@ package boom
 import (
 	"fmt"
 	"sync"
-	"testing"
 	"time"
 
+	"github.com/aphistic/sweet"
 	"github.com/efritz/glock"
 	. "github.com/onsi/gomega"
 )
 
 type AsyncColSuite struct{}
 
-func (s *AsyncColSuite) TestFitsCollector(t *testing.T) {
+func (s *AsyncColSuite) TestFitsCollector(t sweet.T) {
 	// Somehow I missed that AsyncCollector didn't match the Collector interface
 	// so this is here to make sure I can't accidentally do that again.
 
@@ -23,7 +23,7 @@ func (s *AsyncColSuite) TestFitsCollector(t *testing.T) {
 	}(col)
 }
 
-func (s *AsyncColSuite) TestWaitTimeout(t *testing.T) {
+func (s *AsyncColSuite) TestWaitTimeout(t sweet.T) {
 	clock := glock.NewMockClock()
 
 	col := NewAsyncCollector(WithClock(clock))
@@ -57,7 +57,7 @@ func (s *AsyncColSuite) TestWaitTimeout(t *testing.T) {
 	Expect(err).To(Equal(ErrTimeout))
 }
 
-func (s *AsyncColSuite) TestWaitCollect(t *testing.T) {
+func (s *AsyncColSuite) TestWaitCollect(t sweet.T) {
 	clock := glock.NewMockClock()
 
 	col := NewAsyncCollector(WithClock(clock))
@@ -93,7 +93,7 @@ func (s *AsyncColSuite) TestWaitCollect(t *testing.T) {
 	Expect(res[2]).To(Equal(&ValueResult{Value: 3, Error: nil}))
 }
 
-func (s *AsyncColSuite) TestWaitCollectMultipleWaits(t *testing.T) {
+func (s *AsyncColSuite) TestWaitCollectMultipleWaits(t sweet.T) {
 	clock := glock.NewMockClock()
 
 	col := NewAsyncCollector(WithClock(clock))
@@ -102,12 +102,10 @@ func (s *AsyncColSuite) TestWaitCollectMultipleWaits(t *testing.T) {
 	running.Add(3)
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		running.Done()
-		clock.Sleep(5 * time.Millisecond)
 		return NewValueResult(1, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
 		running.Done()
-		clock.Sleep(1 * time.Millisecond)
 		return NewValueResult(2, nil)
 	})
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
@@ -121,15 +119,14 @@ func (s *AsyncColSuite) TestWaitCollectMultipleWaits(t *testing.T) {
 
 	res, err := col.Wait(10 * time.Millisecond)
 	Expect(err).To(BeNil())
-	Expect(res).ToNot(BeNil())
+	Expect(res).To(HaveLen(3))
 
 	res, err = col.Wait(10 * time.Millisecond)
-	Expect(err).ToNot(BeNil())
-	Expect(err).To(Equal(ErrFinished))
-	Expect(res).To(BeNil())
+	Expect(err).To(BeNil())
+	Expect(res).To(HaveLen(3))
 }
 
-func (s *AsyncColSuite) TestWaitCloserTimeout(t *testing.T) {
+func (s *AsyncColSuite) TestWaitCloserTimeout(t sweet.T) {
 	clock := glock.NewMockClock()
 
 	col := NewAsyncCollector(WithClock(clock))
@@ -169,7 +166,7 @@ func (s *AsyncColSuite) TestWaitCloserTimeout(t *testing.T) {
 	closed.Wait()
 }
 
-func (s *AsyncColSuite) TestWaitCloserCollect(t *testing.T) {
+func (s *AsyncColSuite) TestWaitCloserCollect(t sweet.T) {
 	col := NewAsyncCollector()
 
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
@@ -192,7 +189,7 @@ func (s *AsyncColSuite) TestWaitCloserCollect(t *testing.T) {
 	Expect(res[2]).To(Equal(&ValueResult{Value: 3, Error: nil}))
 }
 
-func (s *AsyncColSuite) TestWaitCloserCollectNoTimeout(t *testing.T) {
+func (s *AsyncColSuite) TestWaitCloserCollectNoTimeout(t sweet.T) {
 	col := NewAsyncCollector()
 
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
@@ -215,7 +212,7 @@ func (s *AsyncColSuite) TestWaitCloserCollectNoTimeout(t *testing.T) {
 	Expect(res[2]).To(Equal(&ValueResult{Value: 3, Error: nil}))
 }
 
-func (s *AsyncColSuite) TestArgs(t *testing.T) {
+func (s *AsyncColSuite) TestArgs(t sweet.T) {
 	col := NewAsyncCollector()
 
 	col.Run(func(task *Task, data ...interface{}) TaskResult {
