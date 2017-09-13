@@ -196,7 +196,7 @@ func (s *TaskSuite) TestWaitForRunningTaskFinished(t sweet.T) {
 	})
 
 	err := task.WaitForRunning(100 * time.Millisecond)
-	Expect(err).To(Equal(ErrFinished))
+	Expect(err).To(BeNil())
 	res, err := task.Wait(100 * time.Millisecond)
 	Expect(err).To(BeNil())
 	Expect(res).To(Equal(NewErrorResult(errors.New("I'm an error! - Ralph"))))

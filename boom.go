@@ -134,7 +134,7 @@ func (t *Task) WaitForRunning(timeout time.Duration) error {
 	select {
 	case res := <-t.resultChan:
 		t.completed(res)
-		return ErrFinished
+		return nil
 	case <-t.runChan:
 		return nil
 	case <-timeoutChan:
