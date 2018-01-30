@@ -1,6 +1,7 @@
 package boom
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -54,10 +55,15 @@ func (c *AsyncCollector) cleanup(closer CollectorCloser) {
 // Run takes a TaskFunc to execute and zero or more parameters to pass to that
 // function and immediately starts executing the function.
 func (c *AsyncCollector) Run(f TaskFunc, args ...interface{}) {
+	c.RunWithContext(context.Background(), f, args...)
+}
+
+// RunWithContext calls Run and uses the provided context.Context to run the task.
+func (c *AsyncCollector) RunWithContext(ctx context.Context, f TaskFunc, args ...interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	task := newTask(c.cfg, f, args...)
+	task := newTask(ctx, c.cfg, f, args...)
 
 	colTask := newCollectorTask(task, c.resChan)
 	c.tasks = append(c.tasks, colTask)

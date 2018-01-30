@@ -1,9 +1,13 @@
 package boom
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type Collector interface {
 	Run(TaskFunc, ...interface{})
+	RunWithContext(context.Context, TaskFunc, ...interface{})
 	Wait(time.Duration) ([]TaskResult, error)
 	WaitCloser(time.Duration, CollectorCloser) ([]TaskResult, error)
 }

@@ -1,6 +1,7 @@
 package boom
 
 import (
+	"context"
 	"reflect"
 	"sync"
 	"time"
@@ -20,12 +21,14 @@ type TaskResult interface {
 type Task struct {
 	cfg *taskConfig
 
+	ctx       context.Context
+	cancelCtx context.CancelFunc
+
 	f    TaskFunc
 	args []interface{}
 
 	statusLock sync.RWMutex
 	started    bool
-	stopChan   chan struct{}
 	finished   bool
 
 	runLock sync.RWMutex
@@ -38,23 +41,32 @@ type Task struct {
 }
 
 // newTask creates a new task with the given function and arguments
-func newTask(cfg *taskConfig, f TaskFunc, args ...interface{}) *Task {
+func newTask(ctx context.Context, cfg *taskConfig, f TaskFunc, args ...interface{}) *Task {
+	ctx, cancelCtx := context.WithCancel(ctx)
+
 	return &Task{
 		cfg: cfg,
 
-		f:        f,
-		args:     args,
-		stopChan: make(chan struct{}),
-		runChan:  make(chan struct{}),
+		ctx:       ctx,
+		cancelCtx: cancelCtx,
+
+		f:       f,
+		args:    args,
+		runChan: make(chan struct{}),
 	}
 }
 
 // RunTask will create a new task and immediately call Start() to
 // begin executing the task.
-func runTask(cfg *taskConfig, f TaskFunc, args ...interface{}) *Task {
-	task := newTask(cfg, f, args...)
+func runTask(ctx context.Context, cfg *taskConfig, f TaskFunc, args ...interface{}) *Task {
+	task := newTask(ctx, cfg, f, args...)
 	task.Start()
 	return task
+}
+
+// Context returns the context for the task
+func (t *Task) Context() context.Context {
+	return t.ctx
 }
 
 // Start will begin execution of the task in a separate goroutine.
@@ -151,7 +163,7 @@ func (t *Task) Stop() error {
 		return ErrNotExecuting
 	}
 
-	close(t.stopChan)
+	t.cancelCtx()
 	t.statusLock.Unlock()
 
 	return nil
@@ -221,14 +233,14 @@ func (t *Task) Finished() bool {
 // Stopping returns a channel that is closed if a task is stopping (set by
 // the Stop method)
 func (t *Task) Stopping() <-chan struct{} {
-	return t.stopChan
+	return t.ctx.Done()
 }
 
 // IsStopping is a convenience method to check if the Stopping() channel is
 // closed
 func (t *Task) IsStopping() bool {
 	select {
-	case <-t.stopChan:
+	case <-t.ctx.Done():
 		return true
 	default:
 		return false

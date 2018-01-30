@@ -1,6 +1,7 @@
 package boom
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -29,7 +30,7 @@ const waitTimeout = 10 * time.Millisecond
 
 func ExampleTask() {
 	// Create a new task but don't start execution right away
-	t := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	t := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		// Run the task until something requests that we stop
 		<-task.Stopping()
 		return NewValueResult(args, nil)
@@ -60,7 +61,7 @@ func ExampleTask() {
 }
 
 func (s *TaskSuite) TestStartSync(t sweet.T) {
-	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
 
@@ -69,8 +70,36 @@ func (s *TaskSuite) TestStartSync(t sweet.T) {
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 }
 
+func (s *TaskSuite) TestContext(t sweet.T) {
+	var taskCtx context.Context
+
+	ctx := context.Background()
+	task := runTask(ctx, newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+		taskCtx = task.Context()
+		return nil
+	})
+	task.Wait(0)
+
+	Expect(taskCtx).ToNot(BeNil())
+}
+
+func (s *TaskSuite) TestContextCancelStopsTask(t sweet.T) {
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	task := newTask(ctx, newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+		return nil
+	})
+
+	Expect(ctx.Done()).ToNot(BeClosed())
+	Expect(task.Stopping()).ToNot(BeClosed())
+
+	cancelCtx()
+
+	Eventually(ctx.Done()).Should(BeClosed())
+	Eventually(task.Stopping()).Should(BeClosed())
+}
+
 func (s *TaskSuite) TestStart(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
 
@@ -80,7 +109,7 @@ func (s *TaskSuite) TestStart(t sweet.T) {
 }
 
 func (s *TaskSuite) TestStartStop(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 
 		return NewValueResult(args[0], nil)
@@ -94,7 +123,7 @@ func (s *TaskSuite) TestStartStop(t sweet.T) {
 }
 
 func (s *TaskSuite) TestStartFinished(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
 
@@ -107,7 +136,7 @@ func (s *TaskSuite) TestStartFinished(t sweet.T) {
 }
 
 func (s *TaskSuite) TestFinished(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewValueResult(args[0], nil)
 	}, 1)
 
@@ -119,7 +148,7 @@ func (s *TaskSuite) TestFinished(t sweet.T) {
 }
 
 func (s *TaskSuite) TestStarted(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(args[0], nil)
 	}, 1)
@@ -133,7 +162,7 @@ func (s *TaskSuite) TestStarted(t sweet.T) {
 func (s *TaskSuite) TestRunning(t sweet.T) {
 	advance := make(chan int)
 	advanced := make(chan int)
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		//c.Log("Started task")
 		<-advance
 		//c.Log("Setting running to true")
@@ -164,7 +193,7 @@ func (s *TaskSuite) TestRunning(t sweet.T) {
 }
 
 func (s *TaskSuite) TestWaitForRunning(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		task.SetRunning(true)
 		<-task.Stopping()
 
@@ -179,7 +208,7 @@ func (s *TaskSuite) TestWaitForRunning(t sweet.T) {
 }
 
 func (s *TaskSuite) TestWaitForRunningTimeout(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
@@ -191,7 +220,7 @@ func (s *TaskSuite) TestWaitForRunningTimeout(t sweet.T) {
 }
 
 func (s *TaskSuite) TestWaitForRunningTaskFinished(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return NewErrorResult(errors.New("I'm an error! - Ralph"))
 	})
 
@@ -203,7 +232,7 @@ func (s *TaskSuite) TestWaitForRunningTaskFinished(t sweet.T) {
 }
 
 func (s *TaskSuite) TestRunningSetFalseWhenFinished(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		task.SetRunning(true)
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
@@ -217,7 +246,7 @@ func (s *TaskSuite) TestRunningSetFalseWhenFinished(t sweet.T) {
 }
 
 func (s *TaskSuite) TestWaitTwice(t sweet.T) {
-	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(args[0], nil)
 	}, 1)
@@ -235,7 +264,7 @@ func (s *TaskSuite) TestWaitTwice(t sweet.T) {
 }
 
 func (s *TaskSuite) TestWaitTimeout(t sweet.T) {
-	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		time.Sleep(100 * time.Millisecond)
 		return NewValueResult(args[0], nil)
 	}, 1)
@@ -252,7 +281,7 @@ func (s *TaskSuite) TestWaitTimeout(t sweet.T) {
 }
 
 func (s *TaskSuite) TestStartStarted(t sweet.T) {
-	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
@@ -268,7 +297,7 @@ func (s *TaskSuite) TestStartStarted(t sweet.T) {
 }
 
 func (s *TaskSuite) TestStopStopped(t sweet.T) {
-	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
@@ -278,7 +307,7 @@ func (s *TaskSuite) TestStopStopped(t sweet.T) {
 }
 
 func (s *TaskSuite) TestIsStoppingStopped(t sweet.T) {
-	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
@@ -295,7 +324,7 @@ func (s *TaskSuite) TestIsStoppingStopped(t sweet.T) {
 }
 
 func (s *TaskSuite) TestWaitStopped(t sweet.T) {
-	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(nil, nil)
 	})
@@ -306,7 +335,7 @@ func (s *TaskSuite) TestWaitStopped(t sweet.T) {
 }
 
 func (s *TaskSuite) TestStopAndWait(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(1, nil)
 	})
@@ -319,7 +348,7 @@ func (s *TaskSuite) TestStopAndWait(t sweet.T) {
 }
 
 func (s *TaskSuite) TestStopAndWaitWhileStopped(t sweet.T) {
-	task := newTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
 		return NewValueResult(1, nil)
 	})
@@ -330,7 +359,7 @@ func (s *TaskSuite) TestStopAndWaitWhileStopped(t sweet.T) {
 }
 
 func (s *TaskSuite) TestStopAndWaitTimeout(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		time.Sleep(25 * time.Millisecond)
 		<-task.Stopping()
 		return NewValueResult(1, nil)
@@ -342,7 +371,7 @@ func (s *TaskSuite) TestStopAndWaitTimeout(t sweet.T) {
 }
 
 func (s *TaskSuite) TestNilResult(t sweet.T) {
-	task := runTask(newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+	task := runTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		return nil
 	})
 

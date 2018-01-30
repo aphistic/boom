@@ -14,7 +14,7 @@ func (s *RunnerSuite) TestNewTask(t sweet.T) {
 	clock := glock.NewMockClockAt(time.Unix(100, 0))
 
 	tr := NewTaskRunner(WithClock(clock))
-	task := tr.NewTask(func(task *Task, args ...interface{}) TaskResult {
+	task := tr.New(func(task *Task, args ...interface{}) TaskResult {
 		Expect(args[0]).To(Equal(1))
 		Expect(args[1]).To(Equal(2))
 		Expect(args[2]).To(Equal(3))
@@ -33,7 +33,7 @@ func (s *RunnerSuite) TestRunTask(t sweet.T) {
 	clock := glock.NewRealClock()
 
 	tr := NewTaskRunner(WithClock(clock))
-	task := tr.RunTask(func(task *Task, args ...interface{}) TaskResult {
+	task := tr.Run(func(task *Task, args ...interface{}) TaskResult {
 		Expect(args[0]).To(Equal(1))
 		Expect(args[1]).To(Equal(2))
 		Expect(args[2]).To(Equal(3))

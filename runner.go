@@ -1,5 +1,9 @@
 package boom
 
+import (
+	"context"
+)
+
 // TaskRunner is a way to start one-off tasks where the collection of results
 // does not matter, only each individual task.
 type TaskRunner struct {
@@ -16,13 +20,23 @@ func NewTaskRunner(configs ...TaskConfig) *TaskRunner {
 	}
 }
 
-// NewTask creates a new task with the given function and arguments
-func (tr *TaskRunner) NewTask(f TaskFunc, args ...interface{}) *Task {
-	return newTask(tr.cfg, f, args...)
+// New creates a new task with the given function and arguments
+func (tr *TaskRunner) New(f TaskFunc, args ...interface{}) *Task {
+	return newTask(context.Background(), tr.cfg, f, args...)
 }
 
-// RunTask will create a new task and immediately call Start to begin
+// NewWithContext creates a new task with the given context, function and arguments
+func (tr *TaskRunner) NewWithContext(ctx context.Context, f TaskFunc, args ...interface{}) *Task {
+	return newTask(ctx, tr.cfg, f, args...)
+}
+
+// Run will create a new task and immediately call Start to begin
 // execution of the task.
-func (tr *TaskRunner) RunTask(f TaskFunc, args ...interface{}) *Task {
-	return runTask(tr.cfg, f, args...)
+func (tr *TaskRunner) Run(f TaskFunc, args ...interface{}) *Task {
+	return runTask(context.Background(), tr.cfg, f, args...)
+}
+
+// RunWithContext calls Run using the provided context.Context for the task
+func (tr *TaskRunner) RunWithContext(ctx context.Context, f TaskFunc, args ...interface{}) *Task {
+	return runTask(ctx, tr.cfg, f, args...)
 }
