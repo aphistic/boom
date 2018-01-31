@@ -27,17 +27,19 @@ type Task struct {
 	f    TaskFunc
 	args []interface{}
 
-	statusLock sync.RWMutex
-	started    bool
-	finished   bool
+	statusLock     sync.RWMutex
+	started        bool
+	finished       bool
+	resultReadChan chan struct{}
 
 	runLock sync.RWMutex
 	runChan chan struct{}
 	running bool
 
-	resultLock sync.RWMutex
-	resultChan chan TaskResult
-	waitResult TaskResult
+	resultLock  sync.RWMutex
+	resultChan  chan TaskResult
+	waitResult  TaskResult
+	discardOnce sync.Once
 }
 
 // newTask creates a new task with the given function and arguments
@@ -53,6 +55,9 @@ func newTask(ctx context.Context, cfg *taskConfig, f TaskFunc, args ...interface
 		f:       f,
 		args:    args,
 		runChan: make(chan struct{}),
+
+		resultChan:     make(chan TaskResult),
+		resultReadChan: make(chan struct{}),
 	}
 }
 
@@ -83,17 +88,17 @@ func (t *Task) Start() error {
 	t.started = true
 	t.statusLock.Unlock()
 
-	t.resultLock.Lock()
-	t.resultChan = make(chan TaskResult)
-	t.resultLock.Unlock()
-
 	go func(task *Task) {
 		res := task.f(t, task.args...)
+
 		task.statusLock.Lock()
 		task.started = false
 		task.finished = true
 		task.statusLock.Unlock()
+
 		task.resultChan <- res
+
+		close(task.resultReadChan)
 	}(t)
 
 	return nil
@@ -169,9 +174,22 @@ func (t *Task) Stop() error {
 	return nil
 }
 
+// Discard will discard the result returned from the task.  Either Discard or Wait must be
+// called or the task's goroutine will leak.
+func (t *Task) Discard() {
+	// Start a goroutine to listen to the task result channel and discard the result,
+	// then exit.
+	t.discardOnce.Do(func() {
+		go func() {
+			<-t.resultChan
+		}()
+	})
+}
+
 // Wait will wait for a task to end and return the TaskResult from
 // the task over the returned channel. If a non-zero timeout is provided,
-// Wait will wait until the timeout duration and close the channel
+// Wait will wait until the timeout duration and close the channel. Either Discard or Wait must
+// be called or the task's goroutine will leak.
 func (t *Task) Wait(timeout time.Duration) (TaskResult, error) {
 	t.statusLock.RLock()
 	if !t.started && !t.finished {
