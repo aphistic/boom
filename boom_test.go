@@ -306,7 +306,14 @@ func (s *TaskSuite) TestDiscardAfterRunning(t sweet.T) {
 	})
 
 	task.Start()
+
+	// Yield to allow the runtime to start goroutines
+	time.Sleep(time.Millisecond)
+
 	task.Discard()
+
+	// Yield to allow the runtime to start goroutines
+	time.Sleep(time.Millisecond)
 
 	Eventually(task.resultChan).Should(BeClosed())
 }
