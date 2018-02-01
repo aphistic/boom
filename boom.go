@@ -2,9 +2,7 @@ package boom
 
 import (
 	"context"
-	"fmt"
 	"reflect"
-	"runtime"
 	"sync"
 	"time"
 )
@@ -118,19 +116,12 @@ func (t *Task) Start() error {
 
 	close(t.startedChan)
 
-	_, file, line, _ := runtime.Caller(4)
-	execFrom := fmt.Sprintf("%s:%d", file, line)
-
 	go func(task *Task) {
 		res := task.f(t, task.args...)
 
 		close(t.finishedChan)
 
-		select {
-		case task.resultChan <- res:
-		case <-time.After(5 * time.Second):
-			fmt.Printf("\n\n%s\n\n\n", execFrom)
-		}
+		task.resultChan <- res
 
 		close(task.resultReadChan)
 	}(t)
