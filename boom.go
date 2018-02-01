@@ -31,11 +31,12 @@ type Task struct {
 	runningChan  chan struct{}
 	finishedChan chan struct{}
 
-	resultLock     sync.RWMutex
-	resultChan     chan TaskResult
-	resultReadChan chan struct{}
-	waitResult     TaskResult
-	discardOnce    sync.Once
+	resultLock sync.RWMutex
+	resultChan chan TaskResult
+	waitResult TaskResult
+
+	discardOnce  sync.Once
+	completeOnce sync.Once
 }
 
 // newTask creates a new task with the given function and arguments
@@ -55,8 +56,7 @@ func newTask(ctx context.Context, cfg *taskConfig, f TaskFunc, args ...interface
 		runningChan:  make(chan struct{}),
 		finishedChan: make(chan struct{}),
 
-		resultChan:     make(chan TaskResult),
-		resultReadChan: make(chan struct{}),
+		resultChan: make(chan TaskResult),
 	}
 
 	return task
@@ -122,8 +122,6 @@ func (t *Task) Start() error {
 		close(t.finishedChan)
 
 		task.resultChan <- res
-
-		close(task.resultReadChan)
 	}(t)
 
 	return nil
@@ -185,6 +183,7 @@ func (t *Task) Discard() {
 	t.discardOnce.Do(func() {
 		go func() {
 			<-t.resultChan
+			t.completed(nil)
 		}()
 	})
 }
@@ -244,12 +243,13 @@ func (t *Task) StartSync() (TaskResult, error) {
 }
 
 func (t *Task) completed(result TaskResult) {
-	t.resultLock.Lock()
-	defer t.resultLock.Unlock()
+	t.completeOnce.Do(func() {
+		t.resultLock.Lock()
+		defer t.resultLock.Unlock()
 
-	close(t.resultChan)
-	t.resultChan = nil
-	t.waitResult = result
+		close(t.resultChan)
+		t.waitResult = result
+	})
 }
 
 type ValueResult struct {

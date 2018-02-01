@@ -145,7 +145,7 @@ func (s *TaskSuite) TestFinished(t sweet.T) {
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 
 	Eventually(task.Finished()).Should(BeClosed())
-	Expect(task.resultReadChan).To(BeClosed())
+	Expect(task.resultChan).To(BeClosed())
 }
 
 func (s *TaskSuite) TestStarted(t sweet.T) {
@@ -262,12 +262,12 @@ func (s *TaskSuite) TestWaitTwice(t sweet.T) {
 	res, err := task.Wait(waitTimeout)
 	Expect(err).To(BeNil())
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
-	Expect(task.resultReadChan).To(BeClosed())
+	Expect(task.resultChan).To(BeClosed())
 
 	res, err = task.Wait(waitTimeout)
 	Expect(err).To(BeNil())
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
-	Expect(task.resultReadChan).To(BeClosed())
+	Expect(task.resultChan).To(BeClosed())
 }
 
 func (s *TaskSuite) TestWaitTimeout(t sweet.T) {
@@ -281,12 +281,12 @@ func (s *TaskSuite) TestWaitTimeout(t sweet.T) {
 	res, err := task.Wait(10 * time.Millisecond)
 	Expect(err).To(Equal(ErrTimeout))
 	Expect(res).To(BeNil())
-	Expect(task.resultReadChan).ToNot(BeClosed())
+	Expect(task.resultChan).ToNot(BeClosed())
 
 	res, err = task.Wait(200 * time.Millisecond)
 	Expect(err).To(BeNil())
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
-	Expect(task.resultReadChan).To(BeClosed())
+	Expect(task.resultChan).To(BeClosed())
 }
 
 func (s *TaskSuite) TestDiscardBeforeRunning(t sweet.T) {
@@ -297,7 +297,7 @@ func (s *TaskSuite) TestDiscardBeforeRunning(t sweet.T) {
 	task.Discard()
 	task.Start()
 
-	Eventually(task.resultReadChan).Should(BeClosed())
+	Eventually(task.resultChan).Should(BeClosed())
 }
 
 func (s *TaskSuite) TestDiscardAfterRunning(t sweet.T) {
@@ -308,7 +308,7 @@ func (s *TaskSuite) TestDiscardAfterRunning(t sweet.T) {
 	task.Start()
 	task.Discard()
 
-	Eventually(task.resultReadChan).Should(BeClosed())
+	Eventually(task.resultChan).Should(BeClosed())
 }
 
 func (s *TaskSuite) TestStartStarted(t sweet.T) {
