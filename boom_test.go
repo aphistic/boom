@@ -144,7 +144,7 @@ func (s *TaskSuite) TestFinished(t sweet.T) {
 	Expect(err).To(BeNil())
 	Expect(res).To(Equal(&ValueResult{Value: 1, Error: nil}))
 
-	Expect(task.Finished()).To(Equal(true))
+	Eventually(task.Finished()).Should(BeClosed())
 	Expect(task.resultReadChan).To(BeClosed())
 }
 
@@ -154,7 +154,7 @@ func (s *TaskSuite) TestStarted(t sweet.T) {
 		return NewValueResult(args[0], nil)
 	}, 1)
 
-	Expect(task.Started()).To(Equal(true))
+	Expect(task.Started()).To(BeClosed())
 
 	task.Stop()
 	task.Wait(waitTimeout)
@@ -179,15 +179,15 @@ func (s *TaskSuite) TestRunning(t sweet.T) {
 		return NewValueResult(nil, nil)
 	})
 
-	Expect(task.Running()).To(Equal(false))
+	Expect(task.Running()).ToNot(BeClosed())
 	//c.Log("Advancing to running")
 	advance <- 1
 	<-advanced
-	Expect(task.Running()).To(Equal(true))
+	Expect(task.Running()).To(BeClosed())
 	//c.Log("Advancing to not running")
 	advance <- 1
 	<-advanced
-	Expect(task.Running()).To(Equal(false))
+	Expect(task.Running()).ToNot(BeClosed())
 
 	//c.Log("Stopping")
 	task.Stop()
@@ -243,16 +243,20 @@ func (s *TaskSuite) TestRunningSetFalseWhenFinished(t sweet.T) {
 	Expect(err).To(BeNil())
 	_, err = task.StopAndWait(1 * time.Second)
 	Expect(err).To(BeNil())
-	Expect(task.Running()).To(Equal(false))
+	Expect(task.Running()).ToNot(BeClosed())
 }
 
 func (s *TaskSuite) TestWaitTwice(t sweet.T) {
 	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
+		task.SetRunning(true)
 		<-task.Stopping()
 		return NewValueResult(args[0], nil)
 	}, 1)
 
 	task.Start()
+
+	task.WaitForRunning(0)
+
 	task.Stop()
 
 	res, err := task.Wait(waitTimeout)
@@ -333,23 +337,6 @@ func (s *TaskSuite) TestStopStopped(t sweet.T) {
 	Expect(err).To(Equal(ErrNotExecuting))
 }
 
-func (s *TaskSuite) TestIsStoppingStopped(t sweet.T) {
-	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
-		<-task.Stopping()
-		return NewValueResult(nil, nil)
-	})
-
-	err := task.Start()
-	Expect(err).To(BeNil())
-
-	Expect(task.IsStopping()).To(Equal(false))
-
-	_, err = task.StopAndWait(1 * time.Second)
-	Expect(err).To(BeNil())
-
-	Expect(task.IsStopping()).To(Equal(true))
-}
-
 func (s *TaskSuite) TestWaitStopped(t sweet.T) {
 	task := newTask(context.Background(), newTaskConfig(), func(task *Task, args ...interface{}) TaskResult {
 		<-task.Stopping()
@@ -367,7 +354,7 @@ func (s *TaskSuite) TestStopAndWait(t sweet.T) {
 		return NewValueResult(1, nil)
 	})
 
-	Expect(task.Started()).To(Equal(true))
+	Eventually(task.Started()).Should(BeClosed())
 
 	res, err := task.StopAndWait(waitTimeout)
 	Expect(err).To(BeNil())
